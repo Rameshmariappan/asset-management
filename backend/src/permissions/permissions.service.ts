@@ -5,5 +5,33 @@ import { PrismaService } from '../prisma/prisma.service';
 export class PermissionsService {
   constructor(private prisma: PrismaService) {}
 
-  // TODO: Implement service methods
+  async findAll() {
+    const permissions = await this.prisma.permission.findMany({
+      orderBy: [
+        { resource: 'asc' },
+        { action: 'asc' },
+      ],
+    });
+
+    // Group by resource
+    const grouped = permissions.reduce((acc, perm) => {
+      if (!acc[perm.resource]) {
+        acc[perm.resource] = [];
+      }
+      acc[perm.resource].push(perm);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return {
+      all: permissions,
+      grouped,
+    };
+  }
+
+  async findByResource(resource: string) {
+    return this.prisma.permission.findMany({
+      where: { resource },
+      orderBy: { action: 'asc' },
+    });
+  }
 }
