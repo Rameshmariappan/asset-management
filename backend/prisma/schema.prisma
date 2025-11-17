@@ -1,0 +1,456 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTHENTICATION & AUTHORIZATION
+// ============================================================================
+
+model User {
+  id                String    @id @default(uuid()) @db.Uuid
+  email             String    @unique @db.VarChar(255)
+  passwordHash      String?   @map("password_hash") @db.VarChar(255)
+  firstName         String    @map("first_name") @db.VarChar(100)
+  lastName          String    @map("last_name") @db.VarChar(100)
+  phone             String?   @db.VarChar(20)
+  avatarUrl         String?   @map("avatar_url") @db.Text
+  isActive          Boolean   @default(true) @map("is_active")
+  isMfaEnabled      Boolean   @default(false) @map("is_mfa_enabled")
+  emailVerifiedAt   DateTime? @map("email_verified_at")
+  departmentId      String?   @map("department_id") @db.Uuid
+  managerId         String?   @map("manager_id") @db.Uuid
+  tenantId          String?   @map("tenant_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  // Relations
+  department              Department?  @relation("UserDepartment", fields: [departmentId], references: [id])
+  manager                 User?        @relation("UserManager", fields: [managerId], references: [id])
+  subordinates            User[]       @relation("UserManager")
+  userRoles               UserRole[]
+  refreshTokens           RefreshToken[]
+  mfaSecret               MfaSecret?
+  assignedAssets          AssetAssignment[] @relation("AssignedToUser")
+  assignedByAssets        AssetAssignment[] @relation("AssignedByUser")
+  returnedToAssets        AssetAssignment[] @relation("ReturnedToUser")
+  transfersFrom           AssetTransfer[] @relation("TransferFromUser")
+  transfersTo             AssetTransfer[] @relation("TransferToUser")
+  transfersRequested      AssetTransfer[] @relation("TransferRequestedBy")
+  transfersManagerApproved AssetTransfer[] @relation("TransferManagerApprover")
+  transfersAdminApproved  AssetTransfer[] @relation("TransferAdminApprover")
+  transfersRejected       AssetTransfer[] @relation("TransferRejectedBy")
+  auditLogs               AuditLog[]
+  notifications           Notification[]
+  departmentsHeaded       Department[] @relation("DepartmentHead")
+  userRoleAssignments     UserRole[] @relation("AssignedBy")
+
+  @@index([email])
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([isActive])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  displayName String   @map("display_name") @db.VarChar(100)
+  description String?  @db.Text
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  resource    String   @db.VarChar(50)
+  action      String   @db.VarChar(20)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  assignedBy String?  @map("assigned_by") @db.Uuid
+
+  // Relations
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assigner User? @relation("AssignedBy", fields: [assignedBy], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  userId    String    @map("user_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+  userAgent String?   @map("user_agent") @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model MfaSecret {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  secret      String    @db.VarChar(255)
+  backupCodes Json?     @map("backup_codes") @db.JsonB
+  verifiedAt  DateTime? @map("verified_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_secrets")
+}
+
+// ============================================================================
+// ORGANIZATIONAL STRUCTURE
+// ============================================================================
+
+model Department {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @db.VarChar(100)
+  code       String    @unique @db.VarChar(20)
+  parentId   String?   @map("parent_id") @db.Uuid
+  headUserId String?   @map("head_user_id") @db.Uuid
+  tenantId   String?   @map("tenant_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  parent       Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children     Department[] @relation("DepartmentHierarchy")
+  headUser     User?        @relation("DepartmentHead", fields: [headUserId], references: [id])
+  users        User[]       @relation("UserDepartment")
+
+  @@map("departments")
+}
+
+// ============================================================================
+// ASSET MANAGEMENT
+// ============================================================================
+
+model Category {
+  id                 String     @id @default(uuid()) @db.Uuid
+  name               String     @db.VarChar(100)
+  code               String     @unique @db.VarChar(20)
+  description        String?    @db.Text
+  icon               String?    @db.VarChar(50)
+  depreciationRate   Decimal?   @map("depreciation_rate") @db.Decimal(5, 2)
+  usefulLifeYears    Int?       @map("useful_life_years")
+  parentId           String?    @map("parent_id") @db.Uuid
+  tenantId           String?    @map("tenant_id") @db.Uuid
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  assets   Asset[]
+
+  @@map("categories")
+}
+
+model Vendor {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @db.VarChar(200)
+  code          String    @unique @db.VarChar(20)
+  email         String?   @db.VarChar(255)
+  phone         String?   @db.VarChar(20)
+  website       String?   @db.VarChar(255)
+  address       String?   @db.Text
+  contactPerson String?   @map("contact_person") @db.VarChar(100)
+  taxId         String?   @map("tax_id") @db.VarChar(50)
+  isActive      Boolean   @default(true) @map("is_active")
+  tenantId      String?   @map("tenant_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  assets Asset[]
+
+  @@map("vendors")
+}
+
+model Location {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(200)
+  code        String    @unique @db.VarChar(20)
+  type        String?   @db.VarChar(50)
+  addressLine1 String?  @map("address_line1") @db.VarChar(255)
+  addressLine2 String?  @map("address_line2") @db.VarChar(255)
+  city        String?   @db.VarChar(100)
+  state       String?   @db.VarChar(100)
+  postalCode  String?   @map("postal_code") @db.VarChar(20)
+  country     String?   @db.VarChar(100)
+  latitude    Decimal?  @db.Decimal(10, 7)
+  longitude   Decimal?  @db.Decimal(10, 7)
+  parentId    String?   @map("parent_id") @db.Uuid
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  parent   Location?  @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children Location[] @relation("LocationHierarchy")
+  assets   Asset[]
+
+  @@map("locations")
+}
+
+enum AssetStatus {
+  available
+  assigned
+  maintenance
+  damaged
+  retired
+}
+
+model Asset {
+  id               String      @id @default(uuid()) @db.Uuid
+  assetTag         String      @unique @map("asset_tag") @db.VarChar(50)
+  serialNumber     String?     @unique @map("serial_number") @db.VarChar(100)
+  name             String      @db.VarChar(255)
+  description      String?     @db.Text
+  model            String?     @db.VarChar(100)
+  manufacturer     String?     @db.VarChar(100)
+  categoryId       String      @map("category_id") @db.Uuid
+  vendorId         String      @map("vendor_id") @db.Uuid
+  locationId       String      @map("location_id") @db.Uuid
+  status           AssetStatus
+  purchaseDate     DateTime    @map("purchase_date") @db.Date
+  purchaseCost     Decimal     @map("purchase_cost") @db.Decimal(12, 2)
+  currency         String      @default("USD") @db.VarChar(3)
+  salvageValue     Decimal?    @map("salvage_value") @db.Decimal(12, 2)
+  currentValue     Decimal?    @map("current_value") @db.Decimal(12, 2)
+  warrantyEndDate  DateTime?   @map("warranty_end_date") @db.Date
+  warrantyDetails  String?     @map("warranty_details") @db.Text
+  invoiceNumber    String?     @map("invoice_number") @db.VarChar(100)
+  invoiceUrl       String?     @map("invoice_url") @db.Text
+  imageUrls        Json?       @map("image_urls") @db.JsonB
+  qrCodeUrl        String?     @map("qr_code_url") @db.Text
+  barcodeUrl       String?     @map("barcode_url") @db.Text
+  customFields     Json?       @map("custom_fields") @db.JsonB
+  notes            String?     @db.Text
+  tenantId         String?     @map("tenant_id") @db.Uuid
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  deletedAt        DateTime?   @map("deleted_at")
+
+  // Relations
+  category    Category          @relation(fields: [categoryId], references: [id])
+  vendor      Vendor            @relation(fields: [vendorId], references: [id])
+  location    Location          @relation(fields: [locationId], references: [id])
+  assignments AssetAssignment[]
+  transfers   AssetTransfer[]
+
+  @@index([assetTag])
+  @@index([serialNumber])
+  @@index([categoryId])
+  @@index([vendorId])
+  @@index([locationId])
+  @@index([status])
+  @@index([tenantId])
+  @@index([warrantyEndDate])
+  @@map("assets")
+}
+
+enum Condition {
+  Excellent
+  Good
+  Fair
+  Poor
+  Damaged
+}
+
+model AssetAssignment {
+  id                     String     @id @default(uuid()) @db.Uuid
+  assetId                String     @map("asset_id") @db.Uuid
+  assignedToUserId       String     @map("assigned_to_user_id") @db.Uuid
+  assignedByUserId       String     @map("assigned_by_user_id") @db.Uuid
+  assignedAt             DateTime   @map("assigned_at")
+  expectedReturnDate     DateTime?  @map("expected_return_date") @db.Date
+  returnedAt             DateTime?  @map("returned_at")
+  returnedToUserId       String?    @map("returned_to_user_id") @db.Uuid
+  assignCondition        Condition? @map("assign_condition")
+  assignConditionRating  Int?       @map("assign_condition_rating")
+  assignPhotoUrls        Json?      @map("assign_photo_urls") @db.JsonB
+  assignNotes            String?    @map("assign_notes") @db.Text
+  assignSignatureUrl     String?    @map("assign_signature_url") @db.Text
+  assignSignatureHash    String?    @map("assign_signature_hash") @db.VarChar(64)
+  returnCondition        Condition? @map("return_condition")
+  returnConditionRating  Int?       @map("return_condition_rating")
+  returnPhotoUrls        Json?      @map("return_photo_urls") @db.JsonB
+  returnNotes            String?    @map("return_notes") @db.Text
+  returnSignatureUrl     String?    @map("return_signature_url") @db.Text
+  returnSignatureHash    String?    @map("return_signature_hash") @db.VarChar(64)
+  isActive               Boolean    @default(true) @map("is_active")
+  tenantId               String?    @map("tenant_id") @db.Uuid
+  createdAt              DateTime   @default(now()) @map("created_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  asset          Asset  @relation(fields: [assetId], references: [id])
+  assignedToUser User   @relation("AssignedToUser", fields: [assignedToUserId], references: [id])
+  assignedByUser User   @relation("AssignedByUser", fields: [assignedByUserId], references: [id])
+  returnedToUser User?  @relation("ReturnedToUser", fields: [returnedToUserId], references: [id])
+
+  @@index([assetId])
+  @@index([assignedToUserId])
+  @@index([isActive])
+  @@index([tenantId])
+  @@map("asset_assignments")
+}
+
+enum TransferStatus {
+  pending
+  manager_approved
+  admin_approved
+  rejected
+  completed
+}
+
+model AssetTransfer {
+  id                  String         @id @default(uuid()) @db.Uuid
+  assetId             String         @map("asset_id") @db.Uuid
+  fromUserId          String?        @map("from_user_id") @db.Uuid
+  toUserId            String         @map("to_user_id") @db.Uuid
+  requestedByUserId   String         @map("requested_by_user_id") @db.Uuid
+  transferReason      String?        @map("transfer_reason") @db.Text
+  status              TransferStatus
+  requestedAt         DateTime       @default(now()) @map("requested_at")
+  managerApproverId   String?        @map("manager_approver_id") @db.Uuid
+  managerApprovedAt   DateTime?      @map("manager_approved_at")
+  managerNotes        String?        @map("manager_notes") @db.Text
+  adminApproverId     String?        @map("admin_approver_id") @db.Uuid
+  adminApprovedAt     DateTime?      @map("admin_approved_at")
+  adminNotes          String?        @map("admin_notes") @db.Text
+  rejectedByUserId    String?        @map("rejected_by_user_id") @db.Uuid
+  rejectedAt          DateTime?      @map("rejected_at")
+  rejectionReason     String?        @map("rejection_reason") @db.Text
+  completedAt         DateTime?      @map("completed_at")
+  tenantId            String?        @map("tenant_id") @db.Uuid
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  asset           Asset  @relation(fields: [assetId], references: [id])
+  fromUser        User?  @relation("TransferFromUser", fields: [fromUserId], references: [id])
+  toUser          User   @relation("TransferToUser", fields: [toUserId], references: [id])
+  requestedByUser User   @relation("TransferRequestedBy", fields: [requestedByUserId], references: [id])
+  managerApprover User?  @relation("TransferManagerApprover", fields: [managerApproverId], references: [id])
+  adminApprover   User?  @relation("TransferAdminApprover", fields: [adminApproverId], references: [id])
+  rejectedByUser  User?  @relation("TransferRejectedBy", fields: [rejectedByUserId], references: [id])
+
+  @@index([assetId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
+  @@index([tenantId])
+  @@map("asset_transfers")
+}
+
+// ============================================================================
+// AUDIT & NOTIFICATIONS
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String   @map("entity_id") @db.Uuid
+  action     String   @db.VarChar(50)
+  userId     String?  @map("user_id") @db.Uuid
+  changes    Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType])
+  @@index([entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([tenantId])
+  @@map("audit_logs")
+}
+
+enum NotificationChannel {
+  in_app
+  email
+  slack
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  type      String              @db.VarChar(50)
+  title     String              @db.VarChar(255)
+  message   String              @db.Text
+  data      Json?               @db.JsonB
+  isRead    Boolean             @default(false) @map("is_read")
+  readAt    DateTime?           @map("read_at")
+  channel   NotificationChannel
+  sentAt    DateTime?           @map("sent_at")
+  tenantId  String?             @map("tenant_id") @db.Uuid
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@index([tenantId])
+  @@map("notifications")
+}
