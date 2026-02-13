@@ -10,8 +10,19 @@ interface User {
   email: string
   firstName: string
   lastName: string
-  roles: string[]
+  roles: Array<{
+    id: string
+    name: string
+    displayName: string
+    description?: string
+  }>
   isMfaEnabled: boolean
+  department?: {
+    id: string
+    name: string
+    code: string
+  }
+  departmentId?: string
 }
 
 interface AuthContextType {
@@ -51,7 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const response = await apiClient.get('/auth/me')
-      setUser(response.data)
+      // Handle both wrapped and direct response for backward compatibility
+      const userData = response.data.user || response.data
+      setUser(userData)
     } catch (error) {
       Cookies.remove('accessToken')
       setUser(null)
@@ -99,7 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const response = await apiClient.get('/auth/me')
-      setUser(response.data)
+      // Handle both wrapped and direct response for backward compatibility
+      const userData = response.data.user || response.data
+      setUser(userData)
     } catch (error) {
       console.error('Failed to refresh user:', error)
     }

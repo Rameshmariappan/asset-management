@@ -49,7 +49,7 @@ export default function DashboardPage() {
               {assetStatsLoading ? (
                 <div className="h-7 w-16 animate-pulse bg-gray-200 rounded" />
               ) : (
-                Object.values(assetStats?.byStatus || {}).reduce((a: number, b: number) => a + b, 0)
+                String(Object.values(assetStats?.byStatus || {}).reduce((a, b) => (a as number) + (b as number), 0))
               )}
             </div>
             <p className="text-xs text-muted-foreground">

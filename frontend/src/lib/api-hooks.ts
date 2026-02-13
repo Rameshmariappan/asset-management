@@ -9,6 +9,9 @@ export function useAssets(params?: any) {
       const response = await apiClient.get('/assets', { params })
       return response.data
     },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
   })
 }
 
@@ -103,6 +106,9 @@ export function useUsers(params?: any) {
       const response = await apiClient.get('/users', { params })
       return response.data
     },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
   })
 }
 
@@ -152,46 +158,95 @@ export function useRecentAuditLogs(limit: number = 10) {
 }
 
 // Categories
-export function useCategories() {
+export function useCategories(params?: any) {
   return useQuery({
-    queryKey: ['categories'],
+    queryKey: ['categories', params],
     queryFn: async () => {
-      const response = await apiClient.get('/categories')
+      const response = await apiClient.get('/categories', { params })
       return response.data
     },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
   })
 }
 
 // Vendors
-export function useVendors() {
+export function useVendors(params?: any) {
   return useQuery({
-    queryKey: ['vendors'],
+    queryKey: ['vendors', params],
     queryFn: async () => {
-      const response = await apiClient.get('/vendors')
+      const response = await apiClient.get('/vendors', { params })
       return response.data
     },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
   })
 }
 
 // Locations
-export function useLocations() {
+export function useLocations(params?: any) {
   return useQuery({
-    queryKey: ['locations'],
+    queryKey: ['locations', params],
     queryFn: async () => {
-      const response = await apiClient.get('/locations')
+      const response = await apiClient.get('/locations', { params })
+      return response.data
+    },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
+  })
+}
+
+// Departments
+export function useDepartments(params?: any) {
+  return useQuery({
+    queryKey: ['departments', params],
+    queryFn: async () => {
+      const response = await apiClient.get('/departments', { params })
+      return response.data
+    },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
+  })
+}
+
+// Roles
+export function useRoles() {
+  return useQuery({
+    queryKey: ['roles'],
+    queryFn: async () => {
+      const response = await apiClient.get('/roles')
+      return response.data
+    },
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 30000,
+  })
+}
+
+// Tags
+export function useTags(params?: any) {
+  return useQuery({
+    queryKey: ['tags', params],
+    queryFn: async () => {
+      const response = await apiClient.get('/tags', { params })
       return response.data
     },
   })
 }
 
-// Departments
-export function useDepartments() {
+// Asset History
+export function useAssetHistory(id: string) {
   return useQuery({
-    queryKey: ['departments'],
+    queryKey: ['assets', id, 'history'],
     queryFn: async () => {
-      const response = await apiClient.get('/departments')
+      const response = await apiClient.get(`/assets/${id}/history`)
       return response.data
     },
+    enabled: !!id,
   })
 }
 
@@ -352,6 +407,278 @@ export function useMarkAllNotificationsAsRead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
       queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] })
+    },
+  })
+}
+
+// Category mutations
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/categories', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+    },
+  })
+}
+
+export function useUpdateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.patch(`/categories/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+    },
+  })
+}
+
+export function useDeleteCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete(`/categories/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+    },
+  })
+}
+
+// Vendor mutations
+export function useCreateVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/vendors', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+    },
+  })
+}
+
+export function useUpdateVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.patch(`/vendors/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+    },
+  })
+}
+
+export function useDeleteVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete(`/vendors/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+    },
+  })
+}
+
+// Location mutations
+export function useCreateLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/locations', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+    },
+  })
+}
+
+export function useUpdateLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.patch(`/locations/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+    },
+  })
+}
+
+export function useDeleteLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete(`/locations/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+    },
+  })
+}
+
+// Department mutations
+export function useCreateDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/departments', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+    },
+  })
+}
+
+export function useUpdateDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.patch(`/departments/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+    },
+  })
+}
+
+export function useDeleteDepartment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete(`/departments/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+    },
+  })
+}
+
+// User mutations
+export function useCreateUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const response = await apiClient.post('/users', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiClient.patch(`/users/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete(`/users/${id}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+  })
+}
+
+// Password change
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
+      const response = await apiClient.patch('/users/me/password', data)
+      return response.data
+    },
+  })
+}
+
+// Update asset status
+export function useUpdateAssetStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const response = await apiClient.patch(`/assets/${id}/status`, { status })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] })
+    },
+  })
+}
+
+// Generate tags
+export function useGenerateQRCode() {
+  return useMutation({
+    mutationFn: async (assetId: string) => {
+      const response = await apiClient.post(`/tags/${assetId}/qr`)
+      return response.data
+    },
+  })
+}
+
+export function useGenerateBarcode() {
+  return useMutation({
+    mutationFn: async (assetId: string) => {
+      const response = await apiClient.post(`/tags/${assetId}/barcode`)
+      return response.data
+    },
+  })
+}
+
+export function useGenerateBothTags() {
+  return useMutation({
+    mutationFn: async (assetId: string) => {
+      const response = await apiClient.post(`/tags/${assetId}/both`)
+      return response.data
+    },
+  })
+}
+
+// Auth - Forgot Password
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: async (data: { email: string }) => {
+      const response = await apiClient.post('/auth/forgot-password', data)
+      return response.data
+    },
+  })
+}
+
+// Auth - Reset Password
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: async (data: { token: string; newPassword: string }) => {
+      const response = await apiClient.post('/auth/reset-password', data)
+      return response.data
     },
   })
 }

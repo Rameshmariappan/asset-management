@@ -21,9 +21,12 @@ export class UsersService {
    * Create a new user
    */
   async create(createUserDto: CreateUserDto) {
-    // Check if user already exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+    // Check if user already exists (excluding soft-deleted users)
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        email: createUserDto.email,
+        deletedAt: null, // Only check active (non-deleted) users
+      },
     });
 
     if (existingUser) {
@@ -239,10 +242,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Check email uniqueness if email is being updated
+    // Check email uniqueness if email is being updated (exclude soft-deleted users)
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
-      const emailExists = await this.prisma.user.findUnique({
-        where: { email: updateUserDto.email },
+      const emailExists = await this.prisma.user.findFirst({
+        where: {
+          email: updateUserDto.email,
+          deletedAt: null,
+        },
       });
 
       if (emailExists) {
