@@ -310,7 +310,7 @@ export class AssignmentsService {
       });
 
       // Determine new asset status based on return condition
-      let newStatus = AssetStatus.available;
+      let newStatus: AssetStatus = AssetStatus.available;
       if (returnDto.returnCondition === 'Damaged' || returnDto.returnCondition === 'Poor') {
         newStatus = AssetStatus.damaged;
       }

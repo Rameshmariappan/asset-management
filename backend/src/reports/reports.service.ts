@@ -292,8 +292,8 @@ export class ReportsService {
   /**
    * Generate PDF from data
    */
-  private generatePDF(title: string, data: Record<string, any>[]): Buffer {
-    return new Promise((resolve, reject) => {
+  private generatePDF(title: string, data: Record<string, any>[]): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ margin: 50 });
       const chunks: Buffer[] = [];
 

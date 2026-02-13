@@ -106,7 +106,7 @@ export default function NotificationsPage() {
                 <div className="py-12 text-center text-muted-foreground">
                   <Bell className="mx-auto h-12 w-12 mb-4 opacity-50" />
                   <p>No notifications</p>
-                  <p className="text-sm">You're all caught up!</p>
+                  <p className="text-sm">You&apos;re all caught up!</p>
                 </div>
               )}
             </div>

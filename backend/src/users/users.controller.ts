@@ -51,6 +51,18 @@ export class UsersController {
     return this.service.findOne(userId);
   }
 
+  @Post('me/change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Change current user password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 401, description: 'Current password is incorrect' })
+  changePassword(
+    @CurrentUser('userId') userId: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.service.changePassword(userId, changePasswordDto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully' })
@@ -85,18 +97,6 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found' })
   assignRoles(@Param('id') id: string, @Body() assignRolesDto: AssignRolesDto) {
     return this.service.assignRoles(id, assignRolesDto);
-  }
-
-  @Post('me/change-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Change current user password' })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  @ApiResponse({ status: 401, description: 'Current password is incorrect' })
-  changePassword(
-    @CurrentUser('userId') userId: string,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ) {
-    return this.service.changePassword(userId, changePasswordDto);
   }
 
   @Get(':id/assets')
