@@ -17,6 +17,13 @@ interface User {
     description?: string
   }>
   isMfaEnabled: boolean
+  tenantId?: string
+  isPlatformAdmin?: boolean
+  organization?: {
+    id: string
+    name: string
+    slug: string
+  }
   department?: {
     id: string
     name: string
@@ -35,6 +42,7 @@ interface AuthContextType {
 }
 
 interface RegisterData {
+  organizationName: string
   email: string
   password: string
   firstName: string

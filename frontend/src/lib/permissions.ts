@@ -23,10 +23,13 @@ export function usePermissions() {
 
   const isAdmin = hasRole(ROLES.SUPER_ADMIN)
   const isAdminOrManager = hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER)
+  const isPlatformAdmin = user?.isPlatformAdmin ?? false
 
   return {
     hasRole,
     userRoleNames,
+    isPlatformAdmin,
+    canSwitchOrgs: isPlatformAdmin,
 
     // Users
     canManageUsers: isAdmin,

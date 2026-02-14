@@ -10,6 +10,12 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
+  @ApiProperty({ example: 'Acme Corporation' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  organizationName: string;
+
   @ApiProperty({ example: 'john.doe@company.com' })
   @IsEmail()
   email: string;
