@@ -4,6 +4,8 @@ export interface CurrentUserPayload {
   userId: string;
   email: string;
   roles: string[];
+  tenantId: string;
+  isPlatformAdmin: boolean;
   refreshToken?: string;
 }
 

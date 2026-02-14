@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
 import { usePermissions } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
+import { OrgSwitcher } from '@/components/org-switcher'
 import {
   LayoutDashboard,
   Package,
@@ -26,7 +27,7 @@ import {
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
-  const { canViewUserList, canManageMasterData, canManageTags, canViewReports, canViewTransfers } = usePermissions()
+  const { canViewUserList, canManageMasterData, canManageTags, canViewReports, canViewTransfers, isPlatformAdmin } = usePermissions()
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, visible: true },
@@ -46,9 +47,14 @@ export function Sidebar() {
 
   return (
     <div className="flex h-full flex-col bg-gray-900">
-      <div className="flex h-16 items-center justify-center border-b border-gray-800 px-4">
+      <div className="flex flex-col items-center justify-center border-b border-gray-800 px-4 py-3">
         <h1 className="text-xl font-bold text-white">Asset Manager</h1>
+        {user?.organization && (
+          <p className="mt-1 text-xs text-gray-400 truncate max-w-full">{user.organization.name}</p>
+        )}
       </div>
+
+      {isPlatformAdmin && <OrgSwitcher />}
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
         {navigation.filter((item) => item.visible).map((item) => {

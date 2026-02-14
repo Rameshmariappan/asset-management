@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/auth-context'
+import { usePermissions } from '@/lib/permissions'
 import { useChangePassword } from '@/lib/api-hooks'
-import { Settings, User, Lock, Loader2 } from 'lucide-react'
+import { Settings, User, Lock, Loader2, Mail, Building2 } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
   const { user } = useAuth()
+  const { isAdmin } = usePermissions()
   const changePasswordMutation = useChangePassword()
 
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -86,6 +89,30 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Organization */}
+        {user?.organization && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2"><Building2 className="h-5 w-5" /><span>Organization</span></CardTitle>
+              <CardDescription>Your organization details</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Name:</span><span className="font-medium">{user.organization.name}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Slug:</span><span className="font-medium">{user.organization.slug}</span></div>
+              {isAdmin && (
+                <div className="pt-3">
+                  <Link href="/dashboard/settings/invitations">
+                    <Button variant="outline" size="sm">
+                      <Mail className="mr-2 h-4 w-4" />
+                      Manage Invitations
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* System Info */}
         <Card>

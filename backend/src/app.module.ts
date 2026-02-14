@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ClsModule } from 'nestjs-cls';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { CommonModule } from './common/common.module';
+import { TenantInterceptor } from './common/tenant.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -18,6 +21,8 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TagsModule } from './tags/tags.module';
 import { ReportsModule } from './reports/reports.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { PlatformModule } from './platform/platform.module';
 import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
 
 @Module({
@@ -28,6 +33,12 @@ import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
       envFilePath: '.env',
     }),
 
+    // Request-scoped CLS (for tenant context)
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
+
     // Rate Limiting
     ThrottlerModule.forRoot([
       {
@@ -35,6 +46,9 @@ import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
         limit: 10, // 10 requests per TTL
       },
     ]),
+
+    // Common (tenant context)
+    CommonModule,
 
     // Application Modules
     PrismaModule,
@@ -53,8 +67,14 @@ import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
     NotificationsModule,
     TagsModule,
     ReportsModule,
+    OrganizationsModule,
+    PlatformModule,
   ],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TenantInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,

@@ -27,6 +27,13 @@ class ApiClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
+        // Platform admin org switching
+        if (typeof window !== 'undefined') {
+          const selectedOrgId = sessionStorage.getItem('platform_selected_org_id')
+          if (selectedOrgId) {
+            config.headers['X-Org-Id'] = selectedOrgId
+          }
+        }
         return config
       },
       (error) => Promise.reject(error)

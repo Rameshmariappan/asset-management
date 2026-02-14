@@ -32,7 +32,7 @@ export class AuthService {
     const existingUser = await this.prisma.user.findFirst({
       where: {
         email: registerDto.email,
-        deletedAt: null, // Only check active (non-deleted) users
+        deletedAt: null,
       },
     });
 
@@ -43,41 +43,66 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Create user
-    const user = await this.prisma.user.create({
-      data: {
-        email: registerDto.email,
-        passwordHash: hashedPassword,
-        firstName: registerDto.firstName,
-        lastName: registerDto.lastName,
-        phone: registerDto.phone,
-        departmentId: registerDto.departmentId,
-      },
-      include: {
-        department: true,
-      },
-    });
+    // Generate org slug from name
+    const orgName = registerDto.organizationName;
+    const baseSlug = orgName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    const slug = `${baseSlug}-${randomBytes(3).toString('hex')}`;
 
-    // Assign default EMPLOYEE role
-    const employeeRole = await this.prisma.role.findUnique({
-      where: { name: 'EMPLOYEE' },
-    });
-
-    if (employeeRole) {
-      await this.prisma.userRole.create({
+    // Create org + user + role assignment in a transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create organization
+      const org = await tx.organization.create({
         data: {
-          userId: user.id,
-          roleId: employeeRole.id,
+          name: orgName,
+          slug,
         },
       });
-    }
 
-    // Remove password from response
-    const { passwordHash, ...result } = user;
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          email: registerDto.email,
+          passwordHash: hashedPassword,
+          firstName: registerDto.firstName,
+          lastName: registerDto.lastName,
+          phone: registerDto.phone,
+          tenantId: org.id,
+        },
+      });
+
+      // Assign SUPER_ADMIN role (first user of org gets full admin)
+      const superAdminRole = await tx.role.findUnique({
+        where: { name: 'SUPER_ADMIN' },
+      });
+
+      if (superAdminRole) {
+        await tx.userRole.create({
+          data: {
+            userId: user.id,
+            roleId: superAdminRole.id,
+          },
+        });
+      }
+
+      return { user, org };
+    });
+
+    const { passwordHash, ...userWithoutPassword } = result.user;
 
     return {
-      message: 'User registered successfully',
-      user: result,
+      message: 'Organization and user registered successfully',
+      user: {
+        ...userWithoutPassword,
+        roles: ['SUPER_ADMIN'],
+        organization: {
+          id: result.org.id,
+          name: result.org.name,
+          slug: result.org.slug,
+        },
+      },
     };
   }
 
@@ -92,6 +117,7 @@ export class AuthService {
         deletedAt: null,
       },
       include: {
+        organization: true,
         userRoles: {
           include: {
             role: true,
@@ -144,6 +170,7 @@ export class AuthService {
       user.id,
       user.email,
       roles,
+      user.tenantId,
     );
 
     // Store refresh token
@@ -159,6 +186,13 @@ export class AuthService {
         lastName: user.lastName,
         roles,
         isMfaEnabled: user.isMfaEnabled,
+        tenantId: user.tenantId,
+        isPlatformAdmin: user.isPlatformAdmin,
+        organization: {
+          id: user.organization.id,
+          name: user.organization.name,
+          slug: user.organization.slug,
+        },
       },
     };
   }
@@ -208,7 +242,7 @@ export class AuthService {
 
     // Generate new tokens
     const roles = storedToken.user.userRoles.map((ur) => ur.role.name);
-    const tokens = await this.generateTokens(userId, storedToken.user.email, roles);
+    const tokens = await this.generateTokens(userId, storedToken.user.email, roles, storedToken.user.tenantId);
 
     // Store new refresh token
     await this.storeRefreshToken(
@@ -462,8 +496,8 @@ export class AuthService {
   /**
    * Generate JWT tokens
    */
-  private async generateTokens(userId: string, email: string, roles: string[]) {
-    const payload = { sub: userId, email, roles };
+  private async generateTokens(userId: string, email: string, roles: string[], tenantId: string) {
+    const payload = { sub: userId, email, roles, tenantId };
 
     const accessToken = await this.jwtService.signAsync(payload, {
       secret: this.configService.get('JWT_SECRET'),

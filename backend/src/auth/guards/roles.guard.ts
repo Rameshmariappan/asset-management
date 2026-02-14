@@ -23,6 +23,11 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
+    // Platform admins bypass all role checks
+    if (user.isPlatformAdmin) {
+      return true;
+    }
+
     return requiredRoles.some((role) => user.roles?.includes(role));
   }
 }

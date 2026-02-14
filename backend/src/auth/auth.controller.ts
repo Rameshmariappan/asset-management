@@ -12,11 +12,13 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyMfaDto, DisableMfaDto } from './dto/mfa.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AcceptInvitationDto } from '../organizations/dto/accept-invitation.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
@@ -24,7 +26,10 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private organizationsService: OrganizationsService,
+  ) {}
 
   @Public()
   @Post('register')
@@ -167,6 +172,16 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid or expired token' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Public()
+  @Post('accept-invitation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Accept an invitation and create account' })
+  @ApiResponse({ status: 200, description: 'Account created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired invitation' })
+  async acceptInvitation(@Body() dto: AcceptInvitationDto) {
+    return this.organizationsService.acceptInvitation(dto);
   }
 
   @Get('me')
