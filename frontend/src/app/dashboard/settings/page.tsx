@@ -93,7 +93,7 @@ export default function SettingsPage() {
             <CardTitle className="flex items-center space-x-2"><Settings className="h-5 w-5" /><span>System Information</span></CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Role:</span><span className="font-medium">{user?.roles?.[0]?.displayName || user?.roles?.[0]?.name || 'N/A'}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Role:</span><span className="font-medium">{(() => { const r = user?.roles?.[0]; return typeof r === 'string' ? r : r?.displayName || r?.name || 'N/A' })()}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Department:</span><span className="font-medium">{user?.department?.name || 'N/A'}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Account Status:</span><span className="font-medium">Active</span></div>
           </CardContent>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
+import { usePermissions } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
@@ -22,25 +23,26 @@ import {
   QrCode,
 } from 'lucide-react'
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Assets', href: '/dashboard/assets', icon: Package },
-  { name: 'Assignments', href: '/dashboard/assignments', icon: ClipboardList },
-  { name: 'Transfers', href: '/dashboard/transfers', icon: ArrowRightLeft },
-  { name: 'Tags', href: '/dashboard/tags', icon: QrCode },
-  { name: 'Users', href: '/dashboard/users', icon: Users },
-  { name: 'Departments', href: '/dashboard/departments', icon: Building2 },
-  { name: 'Categories', href: '/dashboard/categories', icon: FolderTree },
-  { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
-  { name: 'Locations', href: '/dashboard/locations', icon: MapPin },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-]
-
 export function Sidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const { canViewUserList, canManageMasterData, canManageTags, canViewReports, canViewTransfers } = usePermissions()
+
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, visible: true },
+    { name: 'Assets', href: '/dashboard/assets', icon: Package, visible: true },
+    { name: 'Assignments', href: '/dashboard/assignments', icon: ClipboardList, visible: true },
+    { name: 'Transfers', href: '/dashboard/transfers', icon: ArrowRightLeft, visible: canViewTransfers },
+    { name: 'Tags', href: '/dashboard/tags', icon: QrCode, visible: canManageTags },
+    { name: 'Users', href: '/dashboard/users', icon: Users, visible: canViewUserList },
+    { name: 'Departments', href: '/dashboard/departments', icon: Building2, visible: canManageMasterData },
+    { name: 'Categories', href: '/dashboard/categories', icon: FolderTree, visible: canManageMasterData },
+    { name: 'Vendors', href: '/dashboard/vendors', icon: Store, visible: canManageMasterData },
+    { name: 'Locations', href: '/dashboard/locations', icon: MapPin, visible: canManageMasterData },
+    { name: 'Reports', href: '/dashboard/reports', icon: FileText, visible: canViewReports },
+    { name: 'Notifications', href: '/dashboard/notifications', icon: Bell, visible: true },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings, visible: true },
+  ]
 
   return (
     <div className="flex h-full flex-col bg-gray-900">
@@ -49,7 +51,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
-        {navigation.map((item) => {
+        {navigation.filter((item) => item.visible).map((item) => {
           const isActive = pathname === item.href
           return (
             <Link

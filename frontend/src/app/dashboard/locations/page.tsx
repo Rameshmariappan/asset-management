@@ -14,6 +14,8 @@ import {
 import { useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/api-hooks'
 import { MapPin, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const LOCATION_TYPES = ['office', 'warehouse', 'remote', 'data_center', 'branch', 'other']
 const initialForm = { name: '', code: '', type: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', country: '', latitude: '', longitude: '' }
@@ -68,6 +70,9 @@ export default function LocationsPage() {
   const createMutation = useCreateLocation()
   const updateMutation = useUpdateLocation()
   const deleteMutation = useDeleteLocation()
+  const { canManageMasterData } = usePermissions()
+
+  if (!canManageMasterData) return <AccessDenied />
 
   const cleanForm = () => ({
     ...form,

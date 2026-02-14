@@ -57,6 +57,17 @@ export function useAssignmentStatistics() {
   })
 }
 
+export function useUserAssignments(userId: string | undefined, params?: { isActive?: boolean }) {
+  return useQuery({
+    queryKey: ['assignments', 'user', userId, params],
+    queryFn: async () => {
+      const response = await apiClient.get(`/assignments/user/${userId}`, { params })
+      return response.data
+    },
+    enabled: !!userId,
+  })
+}
+
 export function useActiveAssignments() {
   return useQuery({
     queryKey: ['assignments', 'active'],

@@ -35,6 +35,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Eye, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
 
 const ASSET_STATUSES = ['available', 'assigned', 'maintenance', 'damaged', 'retired']
 
@@ -195,6 +196,7 @@ const AssetForm = memo(({
 AssetForm.displayName = 'AssetForm'
 
 export default function AssetsPage() {
+  const { canManageAssets } = usePermissions()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -322,10 +324,12 @@ export default function AssetsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Assets</h1>
           <p className="text-muted-foreground">Manage your organization&apos;s assets</p>
         </div>
-        <Button onClick={() => { setFormData(initialFormData); setSelectedAsset(null); setShowCreateDialog(true) }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Asset
-        </Button>
+        {canManageAssets && (
+          <Button onClick={() => { setFormData(initialFormData); setSelectedAsset(null); setShowCreateDialog(true) }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Asset
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -372,12 +376,16 @@ export default function AssetsPage() {
                       <Link href={`/dashboard/assets/${asset.id}`}>
                         <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
                       </Link>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(asset)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setSelectedAsset(asset); setShowDeleteDialog(true) }}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canManageAssets && (
+                        <>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(asset)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setSelectedAsset(asset); setShowDeleteDialog(true) }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

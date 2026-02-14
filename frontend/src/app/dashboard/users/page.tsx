@@ -16,6 +16,8 @@ import { useUsers, useCreateUser, useUpdateUser, useDeleteUser, useDepartments, 
 import { Users, Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { validatePassword } from '@/lib/password-validation'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const initialForm = { email: '', password: '', firstName: '', lastName: '', phone: '', departmentId: '', roleNames: '' }
 
@@ -72,6 +74,7 @@ const UserForm = memo(({ form, setForm, onSubmit, loading, isEdit, departments, 
 UserForm.displayName = 'UserForm'
 
 export default function UsersPage() {
+  const { canViewUserList, canManageUsers, canEditUsers } = usePermissions()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
@@ -167,6 +170,10 @@ export default function UsersPage() {
     return 'secondary'
   }
 
+  if (!canViewUserList) {
+    return <AccessDenied />
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -174,9 +181,11 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="text-muted-foreground">Manage system users and their roles</p>
         </div>
-        <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}>
-          <Plus className="mr-2 h-4 w-4" /> Add User
-        </Button>
+        {canManageUsers && (
+          <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}>
+            <Plus className="mr-2 h-4 w-4" /> Add User
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -196,7 +205,7 @@ export default function UsersPage() {
                 <div className="col-span-3">Email</div>
                 <div className="col-span-2">Department</div>
                 <div className="col-span-2">Role</div>
-                <div className="col-span-2">Actions</div>
+                {(canEditUsers || canManageUsers) && <div className="col-span-2">Actions</div>}
               </div>
               {data?.data?.map((user: any) => {
                 const roleName = user.roles?.[0]?.displayName || user.roles?.[0]?.name || 'N/A'
@@ -209,12 +218,14 @@ export default function UsersPage() {
                     <div className="col-span-3 text-sm text-muted-foreground">{user.email}</div>
                     <div className="col-span-2 text-sm">{user.department?.name || 'N/A'}</div>
                     <div className="col-span-2"><Badge variant={getRoleBadgeVariant(roleName)}>{roleName}</Badge></div>
-                    <div className="col-span-2">
-                      <div className="flex space-x-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(user)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(user); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>
+                    {(canEditUsers || canManageUsers) && (
+                      <div className="col-span-2">
+                        <div className="flex space-x-1">
+                          {canEditUsers && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(user)}><Pencil className="h-4 w-4" /></Button>}
+                          {canManageUsers && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(user); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )
               })}
