@@ -12,6 +12,8 @@ import {
 import { useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor } from '@/lib/api-hooks'
 import { Store, Mail, Phone, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const initialForm = { name: '', code: '', email: '', phone: '', website: '', address: '', contactPerson: '', taxId: '' }
 
@@ -64,6 +66,9 @@ export default function VendorsPage() {
   const createMutation = useCreateVendor()
   const updateMutation = useUpdateVendor()
   const deleteMutation = useDeleteVendor()
+  const { canManageMasterData } = usePermissions()
+
+  if (!canManageMasterData) return <AccessDenied />
 
   const handleCreate = async () => {
     try {

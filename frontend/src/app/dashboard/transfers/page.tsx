@@ -20,6 +20,8 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { ArrowRightLeft, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const CreateTransferDialog = memo(({
   showCreate,
@@ -152,14 +154,18 @@ export default function TransfersPage() {
   const [notes, setNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
 
-  const { data, isLoading } = useTransfers({ page, limit: 20, status })
+  const { canViewTransfers, canApproveTransferAsManager, canApproveTransferAsAdmin, canRejectTransfer } = usePermissions()
+
+  const { data, isLoading } = useTransfers(canViewTransfers ? { page, limit: 20, status } : undefined)
   const { data: stats } = useTransferStatistics()
-  const { data: assetsData } = useAssets({ limit: 100 })
-  const { data: usersData } = useUsers({ limit: 100 })
+  const { data: assetsData } = useAssets(canViewTransfers ? { limit: 100 } : undefined)
+  const { data: usersData } = useUsers(canViewTransfers ? { limit: 100 } : undefined)
   const createMutation = useCreateTransfer()
   const approveManagerMutation = useApproveTransferByManager()
   const approveAdminMutation = useApproveTransferByAdmin()
   const rejectMutation = useRejectTransfer()
+
+  if (!canViewTransfers) return <AccessDenied />
 
   const assets = assetsData?.data || []
   const users = usersData?.data || []
@@ -266,14 +272,14 @@ export default function TransfersPage() {
                     <div className="flex space-x-2">
                       {transfer.status === 'pending' && (
                         <>
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setApprovalType('manager'); setNotes(''); setShowApproveNotes(true) }}>Approve (Manager)</Button>
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setRejectionReason(''); setShowReject(true) }}>Reject</Button>
+                          {canApproveTransferAsManager && <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setApprovalType('manager'); setNotes(''); setShowApproveNotes(true) }}>Approve (Manager)</Button>}
+                          {canRejectTransfer && <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setRejectionReason(''); setShowReject(true) }}>Reject</Button>}
                         </>
                       )}
                       {transfer.status === 'manager_approved' && (
                         <>
-                          <Button size="sm" onClick={() => { setSelectedTransfer(transfer); setApprovalType('admin'); setNotes(''); setShowApproveNotes(true) }}>Approve (Admin)</Button>
-                          <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setRejectionReason(''); setShowReject(true) }}>Reject</Button>
+                          {canApproveTransferAsAdmin && <Button size="sm" onClick={() => { setSelectedTransfer(transfer); setApprovalType('admin'); setNotes(''); setShowApproveNotes(true) }}>Approve (Admin)</Button>}
+                          {canRejectTransfer && <Button variant="outline" size="sm" onClick={() => { setSelectedTransfer(transfer); setRejectionReason(''); setShowReject(true) }}>Reject</Button>}
                         </>
                       )}
                     </div>

@@ -37,6 +37,7 @@ export class UsersController {
   }
 
   @Get()
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD')
   @ApiOperation({ summary: 'Get all users with pagination and filters' })
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
   @ApiQuery({ type: QueryUserDto })
@@ -64,6 +65,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -100,6 +102,7 @@ export class UsersController {
   }
 
   @Get(':id/assets')
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD')
   @ApiOperation({ summary: 'Get user assigned assets' })
   @ApiResponse({ status: 200, description: 'Assets retrieved successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -108,6 +111,7 @@ export class UsersController {
   }
 
   @Get(':id/stats')
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD')
   @ApiOperation({ summary: 'Get user statistics' })
   @ApiResponse({ status: 200, description: 'Statistics retrieved successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })

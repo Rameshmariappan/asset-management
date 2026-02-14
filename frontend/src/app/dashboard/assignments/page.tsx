@@ -13,10 +13,12 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { useAssignments, useAssignmentStatistics, useCreateAssignment, useReturnAsset, useAssets, useUsers } from '@/lib/api-hooks'
+import { useAssignments, useUserAssignments, useAssignmentStatistics, useCreateAssignment, useReturnAsset, useAssets, useUsers } from '@/lib/api-hooks'
 import { formatDateTime } from '@/lib/utils'
 import { UserCheck, Package, TrendingUp, AlertTriangle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { useAuth } from '@/lib/auth-context'
 
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor', 'Damaged']
 
@@ -166,10 +168,21 @@ export default function AssignmentsPage() {
   const [createForm, setCreateForm] = useState({ assetId: '', assignedToUserId: '', expectedReturnDate: '', assignCondition: 'Good', assignConditionRating: '4', assignNotes: '' })
   const [returnForm, setReturnForm] = useState({ returnCondition: 'Good', returnConditionRating: '4', returnNotes: '' })
 
-  const { data, isLoading } = useAssignments({ page, limit: 20, isActive })
+  const { canCreateAssignment, canReturnAsset, canViewAllAssignments } = usePermissions()
+  const { user } = useAuth()
+
+  // EMPLOYEE sees only their own assignments via scoped endpoint
+  const { data: allData, isLoading: allLoading } = useAssignments(canViewAllAssignments ? { page, limit: 20, isActive } : undefined)
+  const { data: userData, isLoading: userLoading } = useUserAssignments(
+    !canViewAllAssignments ? user?.id : undefined,
+    { isActive: isActive ?? undefined }
+  )
+  const data = canViewAllAssignments ? allData : userData ? { data: userData, meta: undefined } : undefined
+  const isLoading = canViewAllAssignments ? allLoading : userLoading
+
   const { data: stats } = useAssignmentStatistics()
-  const { data: assetsData } = useAssets({ status: 'available', limit: 500 })
-  const { data: usersData } = useUsers({ limit: 500, isActive: true })
+  const { data: assetsData } = useAssets(canCreateAssignment ? { status: 'available', limit: 500 } : undefined)
+  const { data: usersData } = useUsers(canCreateAssignment ? { limit: 500, isActive: true } : undefined)
   const createMutation = useCreateAssignment()
   const returnMutation = useReturnAsset()
 
@@ -241,17 +254,21 @@ export default function AssignmentsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Assignments</h1>
           <p className="text-muted-foreground">Track and manage asset assignments</p>
         </div>
+{canCreateAssignment && (
         <Button onClick={() => setShowCreate(true)}>
           <UserCheck className="mr-2 h-4 w-4" /> New Assignment
         </Button>
+        )}
       </div>
 
+      {canViewAllAssignments && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats?.totalAssignments || 0}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Active</CardTitle><TrendingUp className="h-4 w-4 text-green-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{stats?.activeAssignments || 0}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Returned</CardTitle><TrendingUp className="h-4 w-4 text-blue-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{stats?.returnedAssignments || 0}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Overdue</CardTitle><AlertTriangle className="h-4 w-4 text-orange-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-orange-600">{stats?.overdueAssignments || 0}</div></CardContent></Card>
       </div>
+      )}
 
       <div className="flex space-x-2 border-b">
         {[
@@ -291,7 +308,7 @@ export default function AssignmentsPage() {
                       </div>
                       {assignment.assignNotes && <div className="mt-3 text-sm"><p className="text-muted-foreground">Notes:</p><p className="italic">{assignment.assignNotes}</p></div>}
                     </div>
-                    {assignment.isActive && (
+                    {assignment.isActive && canReturnAsset && (
                       <Button variant="outline" size="sm" onClick={() => { setSelectedAssignment(assignment); setShowReturn(true) }}>
                         Return Asset
                       </Button>
@@ -302,7 +319,7 @@ export default function AssignmentsPage() {
               {(!data?.data || data.data.length === 0) && (
                 <div className="py-12 text-center text-muted-foreground"><UserCheck className="mx-auto h-12 w-12 mb-4 opacity-50" /><p>No assignments found</p></div>
               )}
-              {data?.meta && data.meta.totalPages > 1 && (
+              {data?.meta && data.meta.totalPages > 1 && canViewAllAssignments && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages} ({data.meta.total} total)</p>
                   <div className="flex space-x-2">

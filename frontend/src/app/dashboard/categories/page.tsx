@@ -12,6 +12,8 @@ import {
 import { useCategories, useCreateCategory, useUpdateCategory, useDeleteCategory } from '@/lib/api-hooks'
 import { FolderTree, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const initialForm = { name: '', code: '', description: '', icon: '', depreciationRate: '', usefulLifeYears: '' }
 
@@ -80,6 +82,9 @@ export default function CategoriesPage() {
   const createMutation = useCreateCategory()
   const updateMutation = useUpdateCategory()
   const deleteMutation = useDeleteCategory()
+  const { canManageMasterData } = usePermissions()
+
+  if (!canManageMasterData) return <AccessDenied />
 
   const handleCreate = async () => {
     try {

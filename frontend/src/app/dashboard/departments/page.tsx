@@ -11,6 +11,8 @@ import {
 import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepartment } from '@/lib/api-hooks'
 import { Building2, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 
 const initialForm = { name: '', code: '' }
 
@@ -46,6 +48,9 @@ export default function DepartmentsPage() {
   const createMutation = useCreateDepartment()
   const updateMutation = useUpdateDepartment()
   const deleteMutation = useDeleteDepartment()
+  const { canManageMasterData } = usePermissions()
+
+  if (!canManageMasterData) return <AccessDenied />
 
   const handleCreate = async () => {
     try {

@@ -10,6 +10,7 @@ export class RolesController {
   constructor(private readonly service: RolesService) {}
 
   @Get()
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER')
   @ApiOperation({ summary: 'Get all roles' })
   @ApiResponse({ status: 200, description: 'Roles retrieved successfully' })
   findAll() {
@@ -17,6 +18,7 @@ export class RolesController {
   }
 
   @Get(':id')
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER')
   @ApiOperation({ summary: 'Get role by ID' })
   @ApiResponse({ status: 200, description: 'Role retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Role not found' })
@@ -25,6 +27,7 @@ export class RolesController {
   }
 
   @Get(':id/permissions')
+  @Roles('SUPER_ADMIN')
   @ApiOperation({ summary: 'Get role permissions' })
   @ApiResponse({ status: 200, description: 'Permissions retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Role not found' })

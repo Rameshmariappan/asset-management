@@ -10,7 +10,7 @@ interface User {
   email: string
   firstName: string
   lastName: string
-  roles: Array<{
+  roles: Array<string | {
     id: string
     name: string
     displayName: string

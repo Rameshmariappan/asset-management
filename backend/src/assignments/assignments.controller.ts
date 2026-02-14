@@ -80,11 +80,17 @@ export class AssignmentsController {
   async findUserAssignments(
     @Param('userId') userId: string,
     @Query('isActive') isActive?: boolean,
+    @CurrentUser() currentUser?: { userId: string; roles: string[] },
   ) {
-    return this.service.findUserAssignments(userId, isActive);
+    // EMPLOYEE can only view their own assignments
+    const privilegedRoles = ['SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD', 'AUDITOR'];
+    const isPrivileged = currentUser?.roles?.some((r) => privilegedRoles.includes(r));
+    const targetUserId = isPrivileged ? userId : currentUser.userId;
+    return this.service.findUserAssignments(targetUserId, isActive);
   }
 
   @Get(':id')
+  @Roles('SUPER_ADMIN', 'ASSET_MANAGER', 'DEPT_HEAD', 'AUDITOR')
   @ApiOperation({ summary: 'Get assignment by ID' })
   @ApiResponse({ status: 200, description: 'Assignment details' })
   @ApiResponse({ status: 404, description: 'Assignment not found' })
