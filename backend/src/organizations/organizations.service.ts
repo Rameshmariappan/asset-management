@@ -8,8 +8,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant-context.service';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { createHash, randomBytes } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class OrganizationsService {
@@ -25,6 +29,86 @@ export class OrganizationsService {
     const tenantId = this.tenantContext.getTenantId();
     return this.prisma.organization.findUnique({
       where: { id: tenantId },
+    });
+  }
+
+  /**
+   * Update organization details (name)
+   */
+  async updateOrganization(dto: UpdateOrganizationDto) {
+    const tenantId = this.tenantContext.getTenantId();
+    return this.prisma.organization.update({
+      where: { id: tenantId },
+      data: {
+        ...(dto.name && { name: dto.name }),
+      },
+    });
+  }
+
+  /**
+   * Upload organization logo
+   */
+  async updateLogo(file: Express.Multer.File) {
+    const tenantId = this.tenantContext.getTenantId();
+
+    const currentOrg = await this.prisma.organization.findUnique({
+      where: { id: tenantId },
+    });
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const filename = `${uuidv4()}${ext}`;
+    const uploadDir = path.join(__dirname, '..', '..', '..', 'uploads', 'logos');
+
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, file.buffer);
+
+    const logoUrl = `/uploads/logos/${filename}`;
+
+    // Clean up old logo file
+    if (currentOrg?.logoUrl) {
+      try {
+        const oldFilePath = path.join(__dirname, '..', '..', '..', currentOrg.logoUrl);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    return this.prisma.organization.update({
+      where: { id: tenantId },
+      data: { logoUrl },
+    });
+  }
+
+  /**
+   * Remove organization logo
+   */
+  async deleteLogo() {
+    const tenantId = this.tenantContext.getTenantId();
+    const org = await this.prisma.organization.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (org?.logoUrl) {
+      try {
+        const filePath = path.join(__dirname, '..', '..', '..', org.logoUrl);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    return this.prisma.organization.update({
+      where: { id: tenantId },
+      data: { logoUrl: null },
     });
   }
 
@@ -194,6 +278,7 @@ export class OrganizationsService {
           id: invitation.organization.id,
           name: invitation.organization.name,
           slug: invitation.organization.slug,
+          logoUrl: invitation.organization.logoUrl,
         },
       },
     };

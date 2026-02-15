@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { ClsModule } from 'nestjs-cls';
+import { join } from 'path';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CommonModule } from './common/common.module';
 import { TenantInterceptor } from './common/tenant.interceptor';
@@ -37,6 +39,16 @@ import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
     ClsModule.forRoot({
       global: true,
       middleware: { mount: true },
+    }),
+
+    // Static file serving (uploaded logos etc.)
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '..', 'uploads'),
+      serveRoot: '/uploads',
+      serveStaticOptions: {
+        index: false,
+        fallthrough: false,
+      },
     }),
 
     // Rate Limiting

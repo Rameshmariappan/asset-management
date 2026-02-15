@@ -35,6 +35,10 @@ Thumbs.db
 prisma/migrations/**
 !prisma/migrations/.gitkeep
 
+# Uploaded files
+backend/uploads/*
+!backend/uploads/logos/.gitkeep
+
 # Misc
 *.pem
 *.key

@@ -31,10 +31,21 @@ interface SidebarProps {
   onToggle: () => void
 }
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/v1').replace(/\/v1$/, '')
+
+function getInitials(name: string) {
+  const words = name.trim().split(/\s+/)
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
   const { canViewUserList, canManageMasterData, canManageTags, canViewReports, canViewTransfers, isPlatformAdmin } = usePermissions()
+
+  const orgName = user?.organization?.name || 'Asset Manager'
+  const orgLogoUrl = user?.organization?.logoUrl ? `${API_BASE}${user.organization.logoUrl}` : null
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, visible: true },
@@ -54,26 +65,41 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   return (
     <div className="flex h-full flex-col bg-sidebar border-r border-sidebar-border">
-      {/* Header with collapse toggle */}
+      {/* Header with logo + collapse toggle */}
       <div className={cn(
         'flex items-center border-b border-sidebar-border px-4 py-4',
-        collapsed ? 'justify-center px-2' : 'justify-between'
+        collapsed ? 'flex-col gap-2 px-2' : 'justify-between'
       )}>
         {collapsed ? (
-          <button
-            onClick={onToggle}
-            className="flex items-center justify-center rounded-lg p-1.5 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors duration-fast"
-            title="Expand sidebar"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </button>
+          <>
+            {orgLogoUrl ? (
+              <img src={orgLogoUrl} alt={orgName} className="h-8 w-8 rounded-lg object-contain" />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-foreground text-[10px] font-bold">
+                {getInitials(orgName)}
+              </div>
+            )}
+            <button
+              onClick={onToggle}
+              className="flex items-center justify-center rounded-lg p-1.5 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors duration-fast"
+              title="Expand sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </>
         ) : (
           <>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold text-sidebar-foreground">Asset Manager</h1>
-              {user?.organization && (
-                <p className="mt-0.5 text-helper text-sidebar-muted truncate">{user.organization.name}</p>
+            <div className="flex items-center gap-3 min-w-0">
+              {orgLogoUrl ? (
+                <img src={orgLogoUrl} alt={orgName} className="h-9 w-9 rounded-lg object-contain flex-shrink-0" />
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-foreground text-xs font-bold flex-shrink-0">
+                  {getInitials(orgName)}
+                </div>
               )}
+              <div className="min-w-0">
+                <h1 className="text-sm font-bold text-sidebar-foreground truncate">{orgName}</h1>
+              </div>
             </div>
             <button
               onClick={onToggle}

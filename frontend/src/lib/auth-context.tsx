@@ -23,6 +23,7 @@ interface User {
     id: string
     name: string
     slug: string
+    logoUrl?: string | null
   }
   department?: {
     id: string
@@ -39,6 +40,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   register: (data: RegisterData) => Promise<void>
   refreshUser: () => Promise<void>
+  updateOrganizationData: (orgData: Partial<NonNullable<User['organization']>>) => void
 }
 
 interface RegisterData {
@@ -117,6 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await login(data.email, data.password)
   }
 
+  const updateOrganizationData = (orgData: Partial<NonNullable<User['organization']>>) => {
+    setUser(prev => prev ? {
+      ...prev,
+      organization: prev.organization ? { ...prev.organization, ...orgData } : undefined,
+    } : null)
+  }
+
   const refreshUser = async () => {
     try {
       const response = await apiClient.get('/auth/me')
@@ -129,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, refreshUser, updateOrganizationData }}>
       {children}
     </AuthContext.Provider>
   )
