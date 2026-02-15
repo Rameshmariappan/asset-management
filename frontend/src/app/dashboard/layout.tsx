@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { Sidebar } from '@/components/sidebar'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Loader2 } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -13,6 +14,7 @@ export default function DashboardLayout({
 }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,29 +35,31 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className="hidden md:flex md:w-64 md:flex-col">
-        <Sidebar />
+      <div
+        className="hidden md:flex md:flex-col flex-shrink-0 transition-all duration-normal ease-smooth"
+        style={{ width: sidebarCollapsed ? 68 : 256 }}
+      >
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       </div>
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white shadow-sm">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-semibold text-gray-800">
-              {/* Page title will be dynamic */}
-            </h2>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
+        <header className="bg-card border-b border-border">
+          <div className="flex h-14 items-center justify-between px-6">
+            <div />
+            <div className="flex items-center gap-3">
+              <span className="text-helper text-muted-foreground">
                 {new Date().toLocaleDateString('en-US', {
                   weekday: 'short',
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
                 })}
-              </div>
+              </span>
+              <ThemeToggle />
             </div>
           </div>
         </header>
@@ -63,7 +67,7 @@ export default function DashboardLayout({
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="py-6">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl px-6">
               {children}
             </div>
           </div>

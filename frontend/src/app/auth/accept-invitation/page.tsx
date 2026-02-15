@@ -48,7 +48,7 @@ function AcceptInvitationForm() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
@@ -85,10 +85,10 @@ function AcceptInvitationForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
+          <CardTitle className="text-page-title text-center">
             Accept Invitation
           </CardTitle>
           <CardDescription className="text-center">
@@ -107,7 +107,7 @@ function AcceptInvitationForm() {
                   disabled={isLoading}
                 />
                 {errors.firstName && (
-                  <p className="text-sm text-red-500">{errors.firstName.message}</p>
+                  <p className="text-helper text-destructive">{errors.firstName.message}</p>
                 )}
               </div>
               <div className="space-y-2">
@@ -119,7 +119,7 @@ function AcceptInvitationForm() {
                   disabled={isLoading}
                 />
                 {errors.lastName && (
-                  <p className="text-sm text-red-500">{errors.lastName.message}</p>
+                  <p className="text-helper text-destructive">{errors.lastName.message}</p>
                 )}
               </div>
             </div>
@@ -134,7 +134,7 @@ function AcceptInvitationForm() {
                 disabled={isLoading}
               />
               {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
+                <p className="text-helper text-destructive">{errors.password.message}</p>
               )}
             </div>
 
@@ -148,7 +148,7 @@ function AcceptInvitationForm() {
                 disabled={isLoading}
               />
               {errors.confirmPassword && (
-                <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
+                <p className="text-helper text-destructive">{errors.confirmPassword.message}</p>
               )}
             </div>
           </CardContent>
@@ -173,7 +173,7 @@ function AcceptInvitationForm() {
 export default function AcceptInvitationPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     }>

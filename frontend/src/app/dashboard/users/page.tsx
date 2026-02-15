@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, memo } from 'react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +17,9 @@ import { toast } from 'sonner'
 import { validatePassword } from '@/lib/password-validation'
 import { usePermissions } from '@/lib/permissions'
 import { AccessDenied } from '@/components/access-denied'
+import { PageHeader } from '@/components/page-header'
+import { DataTable, type Column } from '@/components/data-table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const initialForm = { email: '', password: '', firstName: '', lastName: '', phone: '', departmentId: '', roleNames: '' }
 
@@ -37,7 +39,7 @@ const UserForm = memo(({ form, setForm, onSubmit, loading, isEdit, departments, 
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           placeholder="Min 8 chars, uppercase, lowercase, number, special char"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-helper text-muted-foreground">
           Must contain uppercase, lowercase, number, and special character (@$!%*?&)
         </p>
       </div>
@@ -94,13 +96,11 @@ export default function UsersPage() {
   const roles = rolesData?.data || rolesData || []
 
   const handleCreate = async () => {
-    // Validate password
     const validation = validatePassword(form.password)
     if (!validation.isValid) {
-      toast.error(validation.errors[0]) // Show first error
+      toast.error(validation.errors[0])
       return
     }
-
     try {
       await createMutation.mutateAsync({
         ...form,
@@ -112,12 +112,7 @@ export default function UsersPage() {
       setShowCreate(false)
       setForm(initialForm)
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message ||
-                          error.response?.data?.error ||
-                          error.message ||
-                          'Failed to create user'
-      toast.error(errorMessage)
-      console.error('Create user error:', error)
+      toast.error(error.response?.data?.message || error.message || 'Failed to create user')
     }
   }
 
@@ -152,7 +147,7 @@ export default function UsersPage() {
     }
   }
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!selected) return
     try {
       await deleteMutation.mutateAsync(selected.id)
@@ -174,99 +169,103 @@ export default function UsersPage() {
     return <AccessDenied />
   }
 
+  const columns: Column<any>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      cell: (user) => (
+        <div>
+          <span className="font-medium">{user.firstName} {user.lastName}</span>
+          {!user.isActive && <Badge variant="secondary" className="ml-2 text-[11px]">Inactive</Badge>}
+        </div>
+      ),
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      cell: (user) => <span className="text-muted-foreground">{user.email}</span>,
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      cell: (user) => user.department?.name || 'N/A',
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      cell: (user) => {
+        const roleName = user.roles?.[0]?.displayName || user.roles?.[0]?.name || 'N/A'
+        return <Badge variant={getRoleBadgeVariant(roleName)}>{roleName}</Badge>
+      },
+    },
+    ...((canEditUsers || canManageUsers) ? [{
+      key: 'actions',
+      header: '',
+      className: 'text-right',
+      cell: (user: any) => (
+        <div className="flex items-center justify-end gap-1">
+          {canEditUsers && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEdit(user) }}><Pencil className="h-4 w-4" /></Button>}
+          {canManageUsers && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); setSelected(user); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>}
+        </div>
+      ),
+    }] : []),
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">Manage system users and their roles</p>
-        </div>
-        {canManageUsers && (
+      <PageHeader
+        title="Users"
+        description="Manage system users and their roles"
+        action={canManageUsers ? (
           <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}>
             <Plus className="mr-2 h-4 w-4" /> Add User
           </Button>
-        )}
+        ) : undefined}
+      />
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Search users..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="pl-9" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search users..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="pl-8" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-16 animate-pulse bg-gray-200 rounded" />)}</div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-12 gap-4 pb-2 border-b font-medium text-sm text-muted-foreground">
-                <div className="col-span-3">Name</div>
-                <div className="col-span-3">Email</div>
-                <div className="col-span-2">Department</div>
-                <div className="col-span-2">Role</div>
-                {(canEditUsers || canManageUsers) && <div className="col-span-2">Actions</div>}
-              </div>
-              {data?.data?.map((user: any) => {
-                const roleName = user.roles?.[0]?.displayName || user.roles?.[0]?.name || 'N/A'
-                return (
-                  <div key={user.id} className="grid grid-cols-12 gap-4 items-center py-3 border-b hover:bg-accent/50 transition-colors">
-                    <div className="col-span-3">
-                      <p className="font-medium">{user.firstName} {user.lastName}</p>
-                      {!user.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
-                    </div>
-                    <div className="col-span-3 text-sm text-muted-foreground">{user.email}</div>
-                    <div className="col-span-2 text-sm">{user.department?.name || 'N/A'}</div>
-                    <div className="col-span-2"><Badge variant={getRoleBadgeVariant(roleName)}>{roleName}</Badge></div>
-                    {(canEditUsers || canManageUsers) && (
-                      <div className="col-span-2">
-                        <div className="flex space-x-1">
-                          {canEditUsers && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(user)}><Pencil className="h-4 w-4" /></Button>}
-                          {canManageUsers && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(user); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-              {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground"><Users className="mx-auto h-12 w-12 mb-4 opacity-50" /><p>No users found</p></div>
-              )}
-              {data?.meta && data.meta.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages} ({data.meta.total} total)</p>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page >= data.meta.totalPages}>Next</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={data?.data || []}
+        isLoading={isLoading}
+        emptyIcon={Users}
+        emptyTitle="No users registered yet"
+        emptyDescription="Add users to manage access and assignments."
+        page={data?.meta?.page || page}
+        totalPages={data?.meta?.totalPages || 1}
+        total={data?.meta?.total}
+        onPageChange={setPage}
+      />
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent><DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Add a new user to the system.</DialogDescription></DialogHeader>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Add a new user to the system.</DialogDescription></DialogHeader>
           <UserForm form={form} setForm={setForm} onSubmit={handleCreate} loading={createMutation.isPending} departments={departments} roles={roles} />
         </DialogContent>
       </Dialog>
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
-        <DialogContent><DialogHeader><DialogTitle>Edit User</DialogTitle><DialogDescription>Update user information.</DialogDescription></DialogHeader>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit User</DialogTitle><DialogDescription>Update user information.</DialogDescription></DialogHeader>
           <UserForm form={form} setForm={setForm} onSubmit={handleUpdate} loading={updateMutation.isPending} isEdit departments={departments} roles={roles} />
         </DialogContent>
       </Dialog>
-      <Dialog open={showDelete} onOpenChange={setShowDelete}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Delete User</DialogTitle><DialogDescription>Are you sure you want to delete {selected?.firstName} {selected?.lastName}?</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDelete(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      <ConfirmDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        title="Delete User"
+        description={`Are you sure you want to delete ${selected?.firstName} ${selected?.lastName}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   )
 }

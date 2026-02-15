@@ -44,10 +44,10 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
+          <CardTitle className="text-page-title text-center">
             Forgot Password
           </CardTitle>
           <CardDescription className="text-center">
@@ -60,7 +60,7 @@ export default function ForgotPasswordPage() {
         {emailSent ? (
           <CardContent className="space-y-4">
             <div className="flex flex-col items-center justify-center space-y-4 py-6">
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
+              <CheckCircle2 className="h-16 w-16 text-emerald-500 dark:text-emerald-400" />
               <div className="text-center space-y-2">
                 <p className="text-sm text-muted-foreground">
                   We&apos;ve sent password reset instructions to:
@@ -85,7 +85,7 @@ export default function ForgotPasswordPage() {
                   disabled={forgotPassword.isPending}
                 />
                 {errors.email && (
-                  <p className="text-sm text-red-500">{errors.email.message}</p>
+                  <p className="text-helper text-destructive">{errors.email.message}</p>
                 )}
               </div>
             </CardContent>

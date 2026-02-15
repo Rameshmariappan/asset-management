@@ -72,10 +72,10 @@ function ResetPasswordContent() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md shadow-card">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center text-red-500">
+            <CardTitle className="text-page-title text-center text-destructive">
               Invalid Reset Link
             </CardTitle>
             <CardDescription className="text-center">
@@ -93,10 +93,10 @@ function ResetPasswordContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
+          <CardTitle className="text-page-title text-center">
             Reset Password
           </CardTitle>
           <CardDescription className="text-center">
@@ -109,7 +109,7 @@ function ResetPasswordContent() {
         {resetSuccess ? (
           <CardContent className="space-y-4">
             <div className="flex flex-col items-center justify-center space-y-4 py-6">
-              <CheckCircle2 className="h-16 w-16 text-green-500" />
+              <CheckCircle2 className="h-16 w-16 text-emerald-500 dark:text-emerald-400" />
               <div className="text-center space-y-2">
                 <p className="text-sm text-muted-foreground">
                   Your password has been reset successfully.
@@ -133,7 +133,7 @@ function ResetPasswordContent() {
                   disabled={resetPassword.isPending}
                 />
                 {errors.newPassword && (
-                  <p className="text-sm text-red-500">{errors.newPassword.message}</p>
+                  <p className="text-helper text-destructive">{errors.newPassword.message}</p>
                 )}
                 <p className="text-xs text-muted-foreground">
                   Must be at least 8 characters
@@ -150,7 +150,7 @@ function ResetPasswordContent() {
                   disabled={resetPassword.isPending}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-sm text-red-500">{errors.confirmPassword.message}</p>
+                  <p className="text-helper text-destructive">{errors.confirmPassword.message}</p>
                 )}
               </div>
             </CardContent>
@@ -180,7 +180,7 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     }>

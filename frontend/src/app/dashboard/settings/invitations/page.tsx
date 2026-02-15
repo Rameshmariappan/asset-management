@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Loader2, Trash2, Copy, ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, Trash2 } from 'lucide-react'
+import { PageHeader } from '@/components/page-header'
 
 interface Invitation {
   id: string
@@ -95,15 +96,7 @@ export default function InvitationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/settings">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Settings
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-bold">Invitations</h1>
-      </div>
+      <PageHeader title="Invitations" description="Invite users to your organization" backHref="/dashboard/settings" />
 
       <Card>
         <CardHeader>
@@ -123,16 +116,14 @@ export default function InvitationsPage() {
             </div>
             <div className="w-48 space-y-2">
               <Label htmlFor="role">Role</Label>
-              <select
-                id="role"
-                value={roleName}
-                onChange={(e) => setRoleName(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                {Object.values(ROLES).map((role) => (
-                  <option key={role} value={role}>{role.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
+              <Select value={roleName} onValueChange={setRoleName}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.values(ROLES).map((role) => (
+                    <SelectItem key={role} value={role}>{role.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button type="submit" disabled={createMutation.isPending || !email}>
               {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -171,13 +162,13 @@ export default function InvitationsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {inv.acceptedAt ? (
-                      <span className="text-sm text-green-600 font-medium">Accepted</span>
+                      <span className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">Accepted</span>
                     ) : (
                       <>
                         {new Date(inv.expiresAt) < new Date() ? (
-                          <span className="text-sm text-red-500 font-medium">Expired</span>
+                          <span className="text-sm text-destructive font-medium">Expired</span>
                         ) : (
-                          <span className="text-sm text-yellow-600 font-medium">Pending</span>
+                          <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Pending</span>
                         )}
                         <Button
                           variant="ghost"
@@ -185,7 +176,7 @@ export default function InvitationsPage() {
                           onClick={() => revokeMutation.mutate(inv.id)}
                           disabled={revokeMutation.isPending}
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </>
                     )}

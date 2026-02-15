@@ -10,10 +10,14 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor } from '@/lib/api-hooks'
-import { Store, Mail, Phone, Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Store, Mail, Phone, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
 import { AccessDenied } from '@/components/access-denied'
+import { PageHeader } from '@/components/page-header'
+import { Pagination } from '@/components/pagination'
+import { EmptyState } from '@/components/empty-state'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const initialForm = { name: '', code: '', email: '', phone: '', website: '', address: '', contactPerson: '', taxId: '' }
 
@@ -136,24 +140,16 @@ export default function VendorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Vendors</h1>
-          <p className="text-muted-foreground">Manage vendors and suppliers</p>
-        </div>
-        <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}>
-          <Plus className="mr-2 h-4 w-4" /> Add Vendor
-        </Button>
-      </div>
+      <PageHeader title="Vendors" description="Manage vendors and suppliers" action={<Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}><Plus className="mr-2 h-4 w-4" /> Add Vendor</Button>} />
 
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="space-y-3">{[1, 2, 3, 4].map((i) => <div key={i} className="h-20 animate-pulse bg-gray-200 rounded" />)}</div>
+            <div className="space-y-3">{[1, 2, 3, 4].map((i) => <div key={i} className="h-20 animate-pulse bg-muted rounded" />)}</div>
           ) : (
             <div className="space-y-3">
               {data?.data?.map((vendor: any) => (
-                <div key={vendor.id} className="flex items-start space-x-4 rounded-lg border p-4">
+                <div key={vendor.id} className="flex items-start space-x-4 rounded-lg border p-4 transition-all duration-fast hover:shadow-card hover:border-border/80">
                   <Store className="h-8 w-8 text-primary mt-1" />
                   <div className="flex-1">
                     <h3 className="font-semibold">{vendor.name}</h3>
@@ -171,19 +167,11 @@ export default function VendorsPage() {
                 </div>
               ))}
               {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground"><Store className="mx-auto h-12 w-12 mb-4 opacity-50" /><p>No vendors found</p></div>
+                <EmptyState icon={Store} title="No vendors added yet" description="Add a vendor to track your suppliers." />
               )}
             </div>
           )}
-          {data?.meta && data.meta.totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages}</div>
-              <div className="flex space-x-2">
-                <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1}><ChevronLeft className="h-4 w-4 mr-1" />Previous</Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page === data.meta.totalPages}>Next<ChevronRight className="h-4 w-4 ml-1" /></Button>
-              </div>
-            </div>
-          )}
+          {data?.meta && <Pagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onPageChange={setPage} />}
         </CardContent>
       </Card>
 
@@ -197,17 +185,7 @@ export default function VendorsPage() {
           <VendorForm form={form} setForm={setForm} selected={selected} onSubmit={handleUpdate} loading={updateMutation.isPending} />
         </DialogContent>
       </Dialog>
-      <Dialog open={showDelete} onOpenChange={setShowDelete}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Delete Vendor</DialogTitle><DialogDescription>Are you sure you want to delete &quot;{selected?.name}&quot;?</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDelete(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog open={showDelete} onOpenChange={setShowDelete} title="Delete Vendor" description={`Are you sure you want to delete "${selected?.name}"?`} confirmLabel="Delete" variant="destructive" onConfirm={handleDelete} isLoading={deleteMutation.isPending} />
     </div>
   )
 }
