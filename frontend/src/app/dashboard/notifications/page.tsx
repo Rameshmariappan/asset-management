@@ -7,6 +7,8 @@ import { useNotifications, useMarkNotificationAsRead, useMarkAllNotificationsAsR
 import { formatDateTime } from '@/lib/utils'
 import { Bell, Check, CheckCheck } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageHeader } from '@/components/page-header'
+import { EmptyState } from '@/components/empty-state'
 
 export default function NotificationsPage() {
   const { data, isLoading, refetch } = useNotifications()
@@ -37,27 +39,23 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
-          <p className="text-muted-foreground">
-            {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
-          </p>
-        </div>
-        {unreadCount > 0 && (
+      <PageHeader
+        title="Notifications"
+        description={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
+        action={unreadCount > 0 ? (
           <Button onClick={handleMarkAllAsRead} variant="outline">
             <CheckCheck className="mr-2 h-4 w-4" />
             Mark All as Read
           </Button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 animate-pulse bg-gray-200 rounded" />
+                <div key={i} className="h-20 animate-pulse bg-muted rounded" />
               ))}
             </div>
           ) : (
@@ -65,11 +63,11 @@ export default function NotificationsPage() {
               {data?.data?.map((notification: any) => (
                 <div
                   key={notification.id}
-                  className={`flex items-start space-x-4 rounded-lg border p-4 ${
-                    !notification.isRead ? 'bg-blue-50 border-blue-200' : ''
+                  className={`flex items-start space-x-4 rounded-lg border p-4 transition-all duration-fast ${
+                    !notification.isRead ? 'bg-primary/5 border-primary/20' : 'hover:shadow-card hover:border-border/80'
                   }`}
                 >
-                  <div className={`mt-1 ${!notification.isRead ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                  <div className={`mt-1 ${!notification.isRead ? 'text-primary' : 'text-muted-foreground'}`}>
                     <Bell className="h-5 w-5" />
                   </div>
                   <div className="flex-1">
@@ -103,11 +101,7 @@ export default function NotificationsPage() {
               ))}
 
               {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground">
-                  <Bell className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p>No notifications</p>
-                  <p className="text-sm">You&apos;re all caught up!</p>
-                </div>
+                <EmptyState icon={Bell} title="No notifications" description="You're all caught up! Notifications will appear here." />
               )}
             </div>
           )}

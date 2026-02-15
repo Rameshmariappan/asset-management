@@ -56,10 +56,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
+          <CardTitle className="text-page-title text-center">
             Asset Management System
           </CardTitle>
           <CardDescription className="text-center">
@@ -78,7 +78,7 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
               {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
+                <p className="text-helper text-destructive">{errors.email.message}</p>
               )}
             </div>
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
               {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
+                <p className="text-helper text-destructive">{errors.password.message}</p>
               )}
             </div>
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   maxLength={6}
                 />
                 {errors.mfaCode && (
-                  <p className="text-sm text-red-500">{errors.mfaCode.message}</p>
+                  <p className="text-helper text-destructive">{errors.mfaCode.message}</p>
                 )}
               </div>
             )}

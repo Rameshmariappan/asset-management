@@ -33,9 +33,12 @@ import {
   useLocations,
 } from '@/lib/api-hooks'
 import { formatCurrency } from '@/lib/utils'
-import { Plus, Search, Eye, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, Trash2, Loader2, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
+import { PageHeader } from '@/components/page-header'
+import { DataTable, type Column } from '@/components/data-table'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 const ASSET_STATUSES = ['available', 'assigned', 'maintenance', 'damaged', 'retired']
 
@@ -317,101 +320,95 @@ export default function AssetsPage() {
     }
   }
 
+  const columns: Column<any>[] = [
+    {
+      key: 'assetTag',
+      header: 'Asset Tag',
+      cell: (asset) => <span className="font-mono font-medium">{asset.assetTag}</span>,
+    },
+    {
+      key: 'name',
+      header: 'Name',
+      cell: (asset) => (
+        <div>
+          <p className="font-medium">{asset.name}</p>
+          {asset.serialNumber && <p className="text-helper text-muted-foreground">SN: {asset.serialNumber}</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+      cell: (asset) => asset.category?.name || 'N/A',
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (asset) => <Badge variant={getStatusBadgeVariant(asset.status)}>{asset.status}</Badge>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      className: 'text-right',
+      headerClassName: 'text-right',
+      cell: (asset) => formatCurrency(asset.currentValue || asset.purchaseCost),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-right',
+      cell: (asset) => (
+        <div className="flex items-center justify-end gap-1">
+          <Link href={`/dashboard/assets/${asset.id}`}>
+            <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
+          </Link>
+          {canManageAssets && (
+            <>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEdit(asset) }}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setSelectedAsset(asset); setShowDeleteDialog(true) }}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Assets</h1>
-          <p className="text-muted-foreground">Manage your organization&apos;s assets</p>
-        </div>
-        {canManageAssets && (
+      <PageHeader
+        title="Assets"
+        description="Manage your organization's assets"
+        action={canManageAssets ? (
           <Button onClick={() => { setFormData(initialFormData); setSelectedAsset(null); setShowCreateDialog(true) }}>
             <Plus className="mr-2 h-4 w-4" />
             Add Asset
           </Button>
-        )}
+        ) : undefined}
+      />
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input placeholder="Search assets..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="pl-9" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search assets..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="pl-8" />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-16 animate-pulse bg-gray-200 rounded" />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-12 gap-4 pb-2 border-b font-medium text-sm text-muted-foreground">
-                <div className="col-span-2">Asset Tag</div>
-                <div className="col-span-3">Name</div>
-                <div className="col-span-2">Category</div>
-                <div className="col-span-2">Status</div>
-                <div className="col-span-2">Value</div>
-                <div className="col-span-1">Actions</div>
-              </div>
-
-              {data?.data?.map((asset: any) => (
-                <div key={asset.id} className="grid grid-cols-12 gap-4 items-center py-3 border-b hover:bg-accent/50 transition-colors">
-                  <div className="col-span-2 font-mono text-sm font-medium">{asset.assetTag}</div>
-                  <div className="col-span-3">
-                    <p className="font-medium">{asset.name}</p>
-                    {asset.serialNumber && <p className="text-xs text-muted-foreground">SN: {asset.serialNumber}</p>}
-                  </div>
-                  <div className="col-span-2 text-sm">{asset.category?.name || 'N/A'}</div>
-                  <div className="col-span-2">
-                    <Badge variant={getStatusBadgeVariant(asset.status)}>{asset.status}</Badge>
-                  </div>
-                  <div className="col-span-2 text-sm">{formatCurrency(asset.currentValue || asset.purchaseCost)}</div>
-                  <div className="col-span-1">
-                    <div className="flex items-center space-x-1">
-                      <Link href={`/dashboard/assets/${asset.id}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
-                      </Link>
-                      {canManageAssets && (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(asset)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { setSelectedAsset(asset); setShowDeleteDialog(true) }}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground">
-                  <Package className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p>No assets found</p>
-                  <p className="text-sm">Try adjusting your search or add a new asset</p>
-                </div>
-              )}
-
-              {data?.meta && data.meta.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages} ({data.meta.total} total)</p>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page >= data.meta.totalPages}>Next</Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={data?.data || []}
+        isLoading={isLoading}
+        emptyIcon={Package}
+        emptyTitle="You haven't added any assets yet"
+        emptyDescription="Get started by clicking 'Add Asset' above."
+        page={data?.meta?.page || page}
+        totalPages={data?.meta?.totalPages || 1}
+        total={data?.meta?.total}
+        onPageChange={setPage}
+      />
 
       {/* Create Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -454,34 +451,16 @@ export default function AssetsPage() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Asset</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{selectedAsset?.name}&quot;? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Asset"
+        description={`Are you sure you want to delete "${selectedAsset?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
-  )
-}
-
-function Package({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m7.5 4.27 9 5.15" />
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="m3.3 7 8.7 5 8.7-5" />
-      <path d="M12 22V12" />
-    </svg>
   )
 }

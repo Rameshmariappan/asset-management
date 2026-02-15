@@ -22,6 +22,10 @@ import { ArrowRightLeft, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-rea
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
 import { AccessDenied } from '@/components/access-denied'
+import { PageHeader } from '@/components/page-header'
+import { StatCard } from '@/components/stat-card'
+import { Pagination } from '@/components/pagination'
+import { EmptyState } from '@/components/empty-state'
 
 const CreateTransferDialog = memo(({
   showCreate,
@@ -224,22 +228,18 @@ export default function TransfersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transfers</h1>
-          <p className="text-muted-foreground">Manage asset transfer requests and approvals</p>
-        </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <ArrowRightLeft className="mr-2 h-4 w-4" /> Request Transfer
-        </Button>
-      </div>
+      <PageHeader
+        title="Transfers"
+        description="Manage asset transfer requests and approvals"
+        action={<Button onClick={() => setShowCreate(true)}><ArrowRightLeft className="mr-2 h-4 w-4" /> Request Transfer</Button>}
+      />
 
       <div className="grid gap-4 md:grid-cols-5">
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle><ArrowRightLeft className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats?.totalTransfers || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Pending</CardTitle><Clock className="h-4 w-4 text-orange-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-orange-600">{stats?.pendingTransfers || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Mgr Approved</CardTitle><CheckCircle className="h-4 w-4 text-blue-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{stats?.managerApprovedTransfers || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Completed</CardTitle><CheckCircle className="h-4 w-4 text-green-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{stats?.completedTransfers || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Rejected</CardTitle><XCircle className="h-4 w-4 text-red-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-red-600">{stats?.rejectedTransfers || 0}</div></CardContent></Card>
+        <StatCard title="Total" value={stats?.totalTransfers || 0} icon={ArrowRightLeft} />
+        <StatCard title="Pending" value={stats?.pendingTransfers || 0} icon={Clock} iconColor="text-amber-600 dark:text-amber-400" />
+        <StatCard title="Mgr Approved" value={stats?.managerApprovedTransfers || 0} icon={CheckCircle} iconColor="text-primary" />
+        <StatCard title="Completed" value={stats?.completedTransfers || 0} icon={CheckCircle} iconColor="text-emerald-600 dark:text-emerald-400" />
+        <StatCard title="Rejected" value={stats?.rejectedTransfers || 0} icon={XCircle} iconColor="text-destructive" />
       </div>
 
       <div className="flex space-x-2 border-b">
@@ -250,7 +250,7 @@ export default function TransfersPage() {
           { label: 'Completed', value: 'completed' },
         ].map((tab) => (
           <button key={String(tab.value)} onClick={() => setStatus(tab.value)}
-            className={`px-4 py-2 font-medium transition-colors ${status === tab.value ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+            className={`px-4 py-2.5 text-button transition-all duration-fast ${status === tab.value ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
             {tab.label}
           </button>
         ))}
@@ -259,11 +259,11 @@ export default function TransfersPage() {
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-32 animate-pulse bg-gray-200 rounded" />)}</div>
+            <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-32 animate-pulse bg-muted rounded" />)}</div>
           ) : (
             <div className="space-y-4">
               {data?.data?.map((transfer: any) => (
-                <div key={transfer.id} className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <div key={transfer.id} className="rounded-lg border p-4 transition-all duration-fast hover:shadow-card hover:border-border/80">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-3">
                       <h3 className="font-semibold text-lg">{transfer.asset?.name}</h3>
@@ -295,28 +295,22 @@ export default function TransfersPage() {
                     {transfer.completedAt && <div><p className="text-muted-foreground">Completed Date</p><p>{formatDateTime(transfer.completedAt)}</p></div>}
                   </div>
                   {transfer.transferReason && <div className="mt-3 text-sm"><p className="text-muted-foreground">Reason:</p><p className="italic">{transfer.transferReason}</p></div>}
-                  {transfer.rejectionReason && <div className="mt-3 text-sm bg-red-50 p-2 rounded"><p className="text-red-800 font-medium">Rejection Reason:</p><p className="text-red-700 italic">{transfer.rejectionReason}</p></div>}
+                  {transfer.rejectionReason && <div className="mt-3 text-sm bg-destructive/10 p-2 rounded"><p className="text-destructive font-medium">Rejection Reason:</p><p className="text-destructive/80 italic">{transfer.rejectionReason}</p></div>}
                   {(transfer.managerApprovedAt || transfer.adminApprovedAt) && (
                     <div className="mt-3 pt-3 border-t"><p className="text-xs font-medium text-muted-foreground mb-2">Approval Timeline</p>
                       <div className="flex items-center space-x-4 text-xs">
-                        {transfer.managerApprovedAt && <div className="flex items-center space-x-1"><CheckCircle className="h-3 w-3 text-green-600" /><span>Manager: {formatDateTime(transfer.managerApprovedAt)}</span></div>}
-                        {transfer.adminApprovedAt && <div className="flex items-center space-x-1"><CheckCircle className="h-3 w-3 text-green-600" /><span>Admin: {formatDateTime(transfer.adminApprovedAt)}</span></div>}
+                        {transfer.managerApprovedAt && <div className="flex items-center space-x-1"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /><span>Manager: {formatDateTime(transfer.managerApprovedAt)}</span></div>}
+                        {transfer.adminApprovedAt && <div className="flex items-center space-x-1"><CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /><span>Admin: {formatDateTime(transfer.adminApprovedAt)}</span></div>}
                       </div>
                     </div>
                   )}
                 </div>
               ))}
               {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground"><ArrowRightLeft className="mx-auto h-12 w-12 mb-4 opacity-50" /><p>No transfers found</p></div>
+                <EmptyState icon={ArrowRightLeft} title="No transfers found" description="Transfer requests will appear here once created." />
               )}
-              {data?.meta && data.meta.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages} ({data.meta.total} total)</p>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page >= data.meta.totalPages}>Next</Button>
-                  </div>
-                </div>
+              {data?.meta && (
+                <Pagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onPageChange={setPage} />
               )}
             </div>
           )}

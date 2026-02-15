@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAsset, useAssetHistory, useGenerateBothTags } from '@/lib/api-hooks'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
-import { ArrowLeft, QrCode, Loader2 } from 'lucide-react'
+import { QrCode, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageHeader } from '@/components/page-header'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -59,22 +60,20 @@ export default function AssetDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/assets')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{asset.name}</h1>
-            <p className="text-muted-foreground font-mono">{asset.assetTag}</p>
+      <PageHeader
+        title={asset.name}
+        description={asset.assetTag}
+        backHref="/dashboard/assets"
+        action={
+          <div className="flex items-center gap-3">
+            <Badge variant={getStatusBadgeVariant(asset.status)}>{asset.status}</Badge>
+            <Button variant="outline" onClick={handleGenerateTags} disabled={generateTags.isPending}>
+              {generateTags.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+              Generate Tags
+            </Button>
           </div>
-          <Badge variant={getStatusBadgeVariant(asset.status)}>{asset.status}</Badge>
-        </div>
-        <Button variant="outline" onClick={handleGenerateTags} disabled={generateTags.isPending}>
-          {generateTags.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
-          Generate Tags
-        </Button>
-      </div>
+        }
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Info */}
@@ -161,7 +160,7 @@ export default function AssetDetailPage() {
           {history?.assignments?.length > 0 || history?.transfers?.length > 0 ? (
             <div className="space-y-4">
               {history?.assignments?.map((a: any) => (
-                <div key={a.id} className="flex items-start space-x-4 border-l-2 border-blue-500 pl-4 py-2">
+                <div key={a.id} className="flex items-start space-x-4 border-l-2 border-primary pl-4 py-2">
                   <div className="flex-1">
                     <p className="font-medium">
                       Assigned to {a.assignedToUser?.firstName} {a.assignedToUser?.lastName}
@@ -178,7 +177,7 @@ export default function AssetDetailPage() {
                 </div>
               ))}
               {history?.transfers?.map((t: any) => (
-                <div key={t.id} className="flex items-start space-x-4 border-l-2 border-orange-500 pl-4 py-2">
+                <div key={t.id} className="flex items-start space-x-4 border-l-2 border-amber-500 dark:border-amber-400 pl-4 py-2">
                   <div className="flex-1">
                     <p className="font-medium">
                       Transfer: {t.fromUser?.firstName || 'Inventory'} → {t.toUser?.firstName} {t.toUser?.lastName}
@@ -216,7 +215,7 @@ export default function AssetDetailPage() {
 function InfoRow({ label, value }: { label: string; value?: string | number | null }) {
   if (!value && value !== 0) return null
   return (
-    <div className="flex justify-between text-sm">
+    <div className="flex justify-between text-table">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-right max-w-[60%]">{value}</span>
     </div>

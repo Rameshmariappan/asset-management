@@ -11,6 +11,7 @@ import { useChangePassword } from '@/lib/api-hooks'
 import { Settings, User, Lock, Loader2, Mail, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
+import { PageHeader } from '@/components/page-header'
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -42,10 +43,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
-      </div>
+      <PageHeader title="Settings" description="Manage your account settings and preferences" />
 
       <div className="grid gap-6">
         {/* Profile Settings */}

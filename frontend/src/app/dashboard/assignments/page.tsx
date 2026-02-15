@@ -19,6 +19,10 @@ import { UserCheck, Package, TrendingUp, AlertTriangle, Loader2 } from 'lucide-r
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
 import { useAuth } from '@/lib/auth-context'
+import { PageHeader } from '@/components/page-header'
+import { StatCard } from '@/components/stat-card'
+import { Pagination } from '@/components/pagination'
+import { EmptyState } from '@/components/empty-state'
 
 const CONDITIONS = ['Excellent', 'Good', 'Fair', 'Poor', 'Damaged']
 
@@ -249,24 +253,22 @@ export default function AssignmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Assignments</h1>
-          <p className="text-muted-foreground">Track and manage asset assignments</p>
-        </div>
-{canCreateAssignment && (
-        <Button onClick={() => setShowCreate(true)}>
-          <UserCheck className="mr-2 h-4 w-4" /> New Assignment
-        </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Assignments"
+        description="Track and manage asset assignments"
+        action={canCreateAssignment ? (
+          <Button onClick={() => setShowCreate(true)}>
+            <UserCheck className="mr-2 h-4 w-4" /> New Assignment
+          </Button>
+        ) : undefined}
+      />
 
       {canViewAllAssignments && (
       <div className="grid gap-4 md:grid-cols-4">
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total</CardTitle><Package className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats?.totalAssignments || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Active</CardTitle><TrendingUp className="h-4 w-4 text-green-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{stats?.activeAssignments || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Returned</CardTitle><TrendingUp className="h-4 w-4 text-blue-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-blue-600">{stats?.returnedAssignments || 0}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Overdue</CardTitle><AlertTriangle className="h-4 w-4 text-orange-600" /></CardHeader><CardContent><div className="text-2xl font-bold text-orange-600">{stats?.overdueAssignments || 0}</div></CardContent></Card>
+        <StatCard title="Total" value={stats?.totalAssignments || 0} icon={Package} />
+        <StatCard title="Active" value={stats?.activeAssignments || 0} icon={TrendingUp} iconColor="text-emerald-600 dark:text-emerald-400" />
+        <StatCard title="Returned" value={stats?.returnedAssignments || 0} icon={TrendingUp} iconColor="text-primary" />
+        <StatCard title="Overdue" value={stats?.overdueAssignments || 0} icon={AlertTriangle} iconColor="text-amber-600 dark:text-amber-400" />
       </div>
       )}
 
@@ -277,7 +279,7 @@ export default function AssignmentsPage() {
           { label: 'All', value: undefined },
         ].map((tab) => (
           <button key={String(tab.value)} onClick={() => setIsActive(tab.value as any)}
-            className={`px-4 py-2 font-medium transition-colors ${isActive === tab.value ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+            className={`px-4 py-2.5 text-button transition-all duration-fast ${isActive === tab.value ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
             {tab.label}
           </button>
         ))}
@@ -286,11 +288,11 @@ export default function AssignmentsPage() {
       <Card>
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-24 animate-pulse bg-gray-200 rounded" />)}</div>
+            <div className="space-y-3">{[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-24 animate-pulse bg-muted rounded" />)}</div>
           ) : (
             <div className="space-y-4">
               {data?.data?.map((assignment: any) => (
-                <div key={assignment.id} className="rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <div key={assignment.id} className="rounded-lg border p-4 transition-all duration-fast hover:shadow-card hover:border-border/80">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
@@ -317,16 +319,10 @@ export default function AssignmentsPage() {
                 </div>
               ))}
               {(!data?.data || data.data.length === 0) && (
-                <div className="py-12 text-center text-muted-foreground"><UserCheck className="mx-auto h-12 w-12 mb-4 opacity-50" /><p>No assignments found</p></div>
+                <EmptyState icon={UserCheck} title="No assignments found" description="Assignments will appear here once assets are assigned to users." />
               )}
-              {data?.meta && data.meta.totalPages > 1 && canViewAllAssignments && (
-                <div className="flex items-center justify-between pt-4">
-                  <p className="text-sm text-muted-foreground">Page {data.meta.page} of {data.meta.totalPages} ({data.meta.total} total)</p>
-                  <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page >= data.meta.totalPages}>Next</Button>
-                  </div>
-                </div>
+              {data?.meta && canViewAllAssignments && (
+                <Pagination page={data.meta.page} totalPages={data.meta.totalPages} total={data.meta.total} onPageChange={setPage} />
               )}
             </div>
           )}

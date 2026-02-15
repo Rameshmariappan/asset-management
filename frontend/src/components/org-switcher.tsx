@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/lib/api-client'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface Organization {
   id: string
@@ -34,34 +41,35 @@ export function OrgSwitcher() {
     }
   }
 
-  const handleChange = (orgId: string) => {
+  const handleChange = (value: string) => {
+    const orgId = value === '__my_org__' ? '' : value
     setSelectedOrgId(orgId)
     if (orgId) {
       sessionStorage.setItem('platform_selected_org_id', orgId)
     } else {
       sessionStorage.removeItem('platform_selected_org_id')
     }
-    // Invalidate all queries to refetch with new org context
     queryClient.invalidateQueries()
   }
 
   if (loading || orgs.length === 0) return null
 
   return (
-    <div className="px-4 py-2 border-b border-gray-800">
-      <label className="block text-xs text-gray-500 mb-1">Viewing as org:</label>
-      <select
-        value={selectedOrgId}
-        onChange={(e) => handleChange(e.target.value)}
-        className="w-full bg-gray-800 text-gray-200 text-sm rounded px-2 py-1.5 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-      >
-        <option value="">My Organization</option>
-        {orgs.map((org) => (
-          <option key={org.id} value={org.id}>
-            {org.name}
-          </option>
-        ))}
-      </select>
+    <div className="px-3 py-2 border-b border-sidebar-border">
+      <label className="block text-helper text-sidebar-muted mb-1.5">Viewing as org:</label>
+      <Select value={selectedOrgId || '__my_org__'} onValueChange={handleChange}>
+        <SelectTrigger className="h-8 text-[13px] bg-sidebar-accent border-sidebar-border text-sidebar-foreground">
+          <SelectValue placeholder="My Organization" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__my_org__">My Organization</SelectItem>
+          {orgs.map((org) => (
+            <SelectItem key={org.id} value={org.id}>
+              {org.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }
