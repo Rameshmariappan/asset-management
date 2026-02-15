@@ -101,6 +101,7 @@ export class AuthService {
           id: result.org.id,
           name: result.org.name,
           slug: result.org.slug,
+          logoUrl: result.org.logoUrl,
         },
       },
     };
@@ -192,6 +193,7 @@ export class AuthService {
           id: user.organization.id,
           name: user.organization.name,
           slug: user.organization.slug,
+          logoUrl: user.organization.logoUrl,
         },
       },
     };

@@ -693,3 +693,37 @@ export function useResetPassword() {
     },
   })
 }
+
+// Organization - Update
+export function useUpdateOrganization() {
+  return useMutation({
+    mutationFn: async (data: { name: string }) => {
+      const response = await apiClient.patch('/organizations/me', data)
+      return response.data
+    },
+  })
+}
+
+// Organization - Upload Logo
+export function useUploadOrganizationLogo() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await apiClient.post('/organizations/me/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data
+    },
+  })
+}
+
+// Organization - Delete Logo
+export function useDeleteOrganizationLogo() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await apiClient.delete('/organizations/me/logo')
+      return response.data
+    },
+  })
+}
