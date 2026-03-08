@@ -36,48 +36,52 @@ export class UsersService {
     // Hash password
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
-    // Create user
-    const user = await this.prisma.user.create({
-      data: {
-        email: createUserDto.email,
-        passwordHash: hashedPassword,
-        firstName: createUserDto.firstName,
-        lastName: createUserDto.lastName,
-        phone: createUserDto.phone,
-        departmentId: createUserDto.departmentId,
-        managerId: createUserDto.managerId,
-        isActive: createUserDto.isActive ?? true,
-      },
-      include: {
-        department: true,
-        manager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    // Assign roles if provided
+    // Resolve roles before the transaction
+    let roleIds: string[];
     if (createUserDto.roleNames && createUserDto.roleNames.length > 0) {
-      await this.assignRoles(user.id, { roleNames: createUserDto.roleNames });
+      const roles = await this.prisma.role.findMany({
+        where: { name: { in: createUserDto.roleNames } },
+      });
+      if (roles.length !== createUserDto.roleNames.length) {
+        throw new BadRequestException('One or more roles not found');
+      }
+      roleIds = roles.map((r) => r.id);
     } else {
-      // Assign default EMPLOYEE role
-      const employeeRole = await this.prisma.role.findUnique({
+      const employeeRole = await this.prisma.role.findFirst({
         where: { name: 'EMPLOYEE' },
       });
-      if (employeeRole) {
-        await this.prisma.userRole.create({
-          data: {
-            userId: user.id,
-            roleId: employeeRole.id,
-          },
-        });
+      if (!employeeRole) {
+        throw new BadRequestException(
+          'System configuration error: EMPLOYEE role not found. Please run database seed.',
+        );
       }
+      roleIds = [employeeRole.id];
     }
+
+    // Create user and assign roles atomically
+    const user = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: createUserDto.email,
+          passwordHash: hashedPassword,
+          firstName: createUserDto.firstName,
+          lastName: createUserDto.lastName,
+          phone: createUserDto.phone,
+          departmentId: createUserDto.departmentId,
+          managerId: createUserDto.managerId,
+          isActive: createUserDto.isActive ?? true,
+        },
+      });
+
+      await tx.userRole.createMany({
+        data: roleIds.map((roleId) => ({
+          userId: newUser.id,
+          roleId,
+        })),
+      });
+
+      return newUser;
+    });
 
     // Fetch user with roles
     return this.findOne(user.id);
@@ -311,18 +315,18 @@ export class UsersService {
       throw new BadRequestException('One or more roles not found');
     }
 
-    // Remove existing roles
-    await this.prisma.userRole.deleteMany({
-      where: { userId },
-    });
-
-    // Assign new roles
-    await this.prisma.userRole.createMany({
-      data: roles.map((role) => ({
-        userId,
-        roleId: role.id,
-      })),
-    });
+    // Remove existing roles and assign new ones atomically
+    await this.prisma.$transaction([
+      this.prisma.userRole.deleteMany({
+        where: { userId },
+      }),
+      this.prisma.userRole.createMany({
+        data: roles.map((role) => ({
+          userId,
+          roleId: role.id,
+        })),
+      }),
+    ]);
 
     return this.findOne(userId);
   }

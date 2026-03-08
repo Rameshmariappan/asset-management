@@ -51,6 +51,17 @@ export class AuthService {
       .replace(/^-|-$/g, '');
     const slug = `${baseSlug}-${randomBytes(3).toString('hex')}`;
 
+    // Look up the SUPER_ADMIN role before the transaction (global, not tenant-scoped)
+    const superAdminRole = await this.prisma.role.findFirst({
+      where: { name: 'SUPER_ADMIN' },
+    });
+
+    if (!superAdminRole) {
+      throw new BadRequestException(
+        'System configuration error: SUPER_ADMIN role not found. Please run database seed.',
+      );
+    }
+
     // Create org + user + role assignment in a transaction
     const result = await this.prisma.$transaction(async (tx) => {
       // Create organization
@@ -74,18 +85,12 @@ export class AuthService {
       });
 
       // Assign SUPER_ADMIN role (first user of org gets full admin)
-      const superAdminRole = await tx.role.findUnique({
-        where: { name: 'SUPER_ADMIN' },
+      await tx.userRole.create({
+        data: {
+          userId: user.id,
+          roleId: superAdminRole.id,
+        },
       });
-
-      if (superAdminRole) {
-        await tx.userRole.create({
-          data: {
-            userId: user.id,
-            roleId: superAdminRole.id,
-          },
-        });
-      }
 
       return { user, org };
     });
@@ -144,6 +149,11 @@ export class AuthService {
       throw new UnauthorizedException('Account is inactive');
     }
 
+    // Check if organization is active
+    if (user.organization && !user.organization.isActive) {
+      throw new UnauthorizedException('Organization is inactive');
+    }
+
     // Check MFA
     if (user.isMfaEnabled && user.mfaSecret) {
       if (!loginDto.mfaCode) {
@@ -189,12 +199,14 @@ export class AuthService {
         isMfaEnabled: user.isMfaEnabled,
         tenantId: user.tenantId,
         isPlatformAdmin: user.isPlatformAdmin,
-        organization: {
-          id: user.organization.id,
-          name: user.organization.name,
-          slug: user.organization.slug,
-          logoUrl: user.organization.logoUrl,
-        },
+        organization: user.organization
+          ? {
+              id: user.organization.id,
+              name: user.organization.name,
+              slug: user.organization.slug,
+              logoUrl: user.organization.logoUrl,
+            }
+          : null,
       },
     };
   }
@@ -236,23 +248,30 @@ export class AuthService {
       throw new UnauthorizedException('Token has expired');
     }
 
-    // Revoke old token
-    await this.prisma.refreshToken.update({
-      where: { id: storedToken.id },
-      data: { revokedAt: new Date() },
-    });
-
     // Generate new tokens
     const roles = storedToken.user.userRoles.map((ur) => ur.role.name);
     const tokens = await this.generateTokens(userId, storedToken.user.email, roles, storedToken.user.tenantId);
 
-    // Store new refresh token
-    await this.storeRefreshToken(
-      userId,
-      tokens.refreshToken,
-      storedToken.ipAddress,
-      storedToken.userAgent,
-    );
+    // Revoke old token and store new one atomically
+    const newTokenHash = this.hashToken(tokens.refreshToken);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.update({
+        where: { id: storedToken.id },
+        data: { revokedAt: new Date() },
+      }),
+      this.prisma.refreshToken.create({
+        data: {
+          userId,
+          tokenHash: newTokenHash,
+          expiresAt,
+          ipAddress: storedToken.ipAddress,
+          userAgent: storedToken.userAgent,
+        },
+      }),
+    ]);
 
     return tokens;
   }
@@ -341,19 +360,20 @@ export class AuthService {
       backupCodes.map((code) => bcrypt.hash(code, 10)),
     );
 
-    // Mark MFA as verified and enabled
-    await this.prisma.mfaSecret.update({
-      where: { userId },
-      data: {
-        verifiedAt: new Date(),
-        backupCodes: hashedBackupCodes,
-      },
-    });
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { isMfaEnabled: true },
-    });
+    // Mark MFA as verified and enabled (atomic)
+    await this.prisma.$transaction([
+      this.prisma.mfaSecret.update({
+        where: { userId },
+        data: {
+          verifiedAt: new Date(),
+          backupCodes: hashedBackupCodes,
+        },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { isMfaEnabled: true },
+      }),
+    ]);
 
     return {
       message: 'MFA enabled successfully',
@@ -386,15 +406,16 @@ export class AuthService {
       throw new BadRequestException('Invalid MFA code');
     }
 
-    // Delete MFA secret and disable MFA
-    await this.prisma.mfaSecret.delete({
-      where: { userId },
-    });
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { isMfaEnabled: false },
-    });
+    // Delete MFA secret and disable MFA (atomic)
+    await this.prisma.$transaction([
+      this.prisma.mfaSecret.delete({
+        where: { userId },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { isMfaEnabled: false },
+      }),
+    ]);
 
     return { message: 'MFA disabled successfully' };
   }
@@ -441,11 +462,11 @@ export class AuthService {
     });
 
     // In production, send email with reset link containing rawToken.
-    // For development, return the token directly.
+    // For development, return the token directly for testing.
+    const isDev = this.configService.get('NODE_ENV') !== 'production';
     return {
       message: 'If an account with that email exists, a password reset link has been sent.',
-      // Remove resetToken in production — only exposed for dev/testing
-      resetToken: rawToken,
+      ...(isDev && { resetToken: rawToken }),
     };
   }
 
@@ -555,7 +576,7 @@ export class AuthService {
   private generateBackupCodes(count: number = 10): string[] {
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const code = randomBytes(4).toString('hex').toUpperCase();
       codes.push(code);
     }
     return codes;

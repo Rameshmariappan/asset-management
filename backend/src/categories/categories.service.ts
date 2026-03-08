@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -71,6 +71,10 @@ export class CategoriesService {
       throw new NotFoundException('Category not found');
     }
 
+    if (updateCategoryDto.parentId === id) {
+      throw new BadRequestException('Category cannot be its own parent');
+    }
+
     if (updateCategoryDto.code && updateCategoryDto.code !== existing.code) {
       const codeExists = await this.prisma.category.findUnique({
         where: { code: updateCategoryDto.code },
@@ -90,21 +94,22 @@ export class CategoriesService {
   async remove(id: string) {
     const category = await this.prisma.category.findUnique({
       where: { id },
-      include: {
-        assets: true,
-        children: true,
-      },
     });
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
-    if (category.assets.length > 0) {
+    const [assetCount, childCount] = await Promise.all([
+      this.prisma.asset.count({ where: { categoryId: id } }),
+      this.prisma.category.count({ where: { parentId: id } }),
+    ]);
+
+    if (assetCount > 0) {
       throw new ConflictException('Cannot delete category with assigned assets');
     }
 
-    if (category.children.length > 0) {
+    if (childCount > 0) {
       throw new ConflictException('Cannot delete category with child categories');
     }
 

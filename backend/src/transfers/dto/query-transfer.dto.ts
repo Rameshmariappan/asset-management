@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsUUID, IsEnum, IsInt, Min, IsString } from 'class-validator';
+import { IsOptional, IsUUID, IsEnum, IsInt, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TransferStatus } from '@prisma/client';
 
@@ -43,13 +43,13 @@ export class QueryTransferDto {
   @Type(() => Number)
   limit?: number = 20;
 
-  @ApiProperty({ required: false, example: 'requestedAt' })
+  @ApiProperty({ required: false, example: 'requestedAt', enum: ['requestedAt', 'completedAt', 'status'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['requestedAt', 'completedAt', 'status'])
   sortBy?: string = 'requestedAt';
 
   @ApiProperty({ required: false, example: 'desc', enum: ['asc', 'desc'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'desc';
 }

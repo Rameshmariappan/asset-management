@@ -49,7 +49,7 @@ export class AuditLogsController {
   @ApiOperation({ summary: 'Get recent audit logs' })
   @ApiResponse({ status: 200, description: 'Recent audit logs' })
   async findRecent(@Query('limit') limit?: number) {
-    return this.service.findRecent(limit || 50);
+    return this.service.findRecent(Math.min(limit || 50, 200));
   }
 
   @Get('entity/:entityType/:entityId')

@@ -16,7 +16,7 @@ import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { QueryAssetDto } from './dto/query-asset.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { AssetStatus } from '@prisma/client';
+import { UpdateAssetStatusDto } from './dto/update-asset-status.dto';
 
 @ApiTags('assets')
 @ApiBearerAuth('JWT-auth')
@@ -78,8 +78,8 @@ export class AssetsController {
   @ApiOperation({ summary: 'Update asset status' })
   @ApiResponse({ status: 200, description: 'Status updated successfully' })
   @ApiResponse({ status: 404, description: 'Asset not found' })
-  updateStatus(@Param('id') id: string, @Body('status') status: AssetStatus) {
-    return this.service.updateStatus(id, status);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateAssetStatusDto) {
+    return this.service.updateStatus(id, dto.status);
   }
 
   @Delete(':id')

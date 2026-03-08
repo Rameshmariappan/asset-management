@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
@@ -76,6 +76,10 @@ export class LocationsService {
       throw new NotFoundException('Location not found');
     }
 
+    if (updateLocationDto.parentId === id) {
+      throw new BadRequestException('Location cannot be its own parent');
+    }
+
     if (updateLocationDto.code && updateLocationDto.code !== existing.code) {
       const codeExists = await this.prisma.location.findUnique({
         where: { code: updateLocationDto.code },
@@ -95,21 +99,22 @@ export class LocationsService {
   async remove(id: string) {
     const location = await this.prisma.location.findUnique({
       where: { id },
-      include: {
-        assets: true,
-        children: true,
-      },
     });
 
     if (!location) {
       throw new NotFoundException('Location not found');
     }
 
-    if (location.assets.length > 0) {
+    const [assetCount, childCount] = await Promise.all([
+      this.prisma.asset.count({ where: { locationId: id } }),
+      this.prisma.location.count({ where: { parentId: id } }),
+    ]);
+
+    if (assetCount > 0) {
       throw new ConflictException('Cannot delete location with assigned assets');
     }
 
-    if (location.children.length > 0) {
+    if (childCount > 0) {
       throw new ConflictException('Cannot delete location with child locations');
     }
 

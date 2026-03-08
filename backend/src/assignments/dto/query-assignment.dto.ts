@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsUUID, IsBoolean, IsInt, Min, IsString } from 'class-validator';
+import { IsOptional, IsUUID, IsBoolean, IsInt, Min, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QueryAssignmentDto {
@@ -38,13 +38,13 @@ export class QueryAssignmentDto {
   @Type(() => Number)
   limit?: number = 20;
 
-  @ApiProperty({ required: false, example: 'assignedAt' })
+  @ApiProperty({ required: false, example: 'assignedAt', enum: ['assignedAt', 'createdAt', 'returnedAt'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['assignedAt', 'createdAt', 'returnedAt'])
   sortBy?: string = 'assignedAt';
 
   @ApiProperty({ required: false, example: 'desc', enum: ['asc', 'desc'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'desc';
 }

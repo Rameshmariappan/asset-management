@@ -50,6 +50,7 @@ describe('AuthService', () => {
     },
     role: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     userRole: {
       create: jest.fn(),
@@ -104,7 +105,7 @@ describe('AuthService', () => {
       isPlatformAdmin: false,
       firstName: 'Test',
       lastName: 'User',
-      organization: { id: 'org-1', name: 'Test Org', slug: 'test-org', logoUrl: null },
+      organization: { id: 'org-1', name: 'Test Org', slug: 'test-org', logoUrl: null, isActive: true },
       userRoles: [{ role: { name: 'EMPLOYEE' } }],
       mfaSecret: null,
     };
@@ -213,7 +214,7 @@ describe('AuthService', () => {
         passwordHash: 'hashed-pw',
         tenantId: 'org-1',
       });
-      mockPrisma.role.findUnique.mockResolvedValue({
+      mockPrisma.role.findFirst.mockResolvedValue({
         id: 'role-1',
         name: 'SUPER_ADMIN',
       });
@@ -298,7 +299,7 @@ describe('AuthService', () => {
 
       expect(prisma.passwordResetToken.updateMany).toHaveBeenCalled();
       expect(prisma.passwordResetToken.create).toHaveBeenCalled();
-      expect(result.resetToken).toBeDefined();
+      expect((result as any).resetToken).toBeDefined();
     });
   });
 

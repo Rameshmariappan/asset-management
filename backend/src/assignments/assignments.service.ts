@@ -334,6 +334,7 @@ export class AssignmentsService {
     const assignments = await this.prisma.assetAssignment.findMany({
       where: { isActive: true },
       orderBy: { assignedAt: 'desc' },
+      take: 1000,
       include: {
         asset: {
           select: {

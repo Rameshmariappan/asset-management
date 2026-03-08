@@ -56,25 +56,26 @@ export class OrganizationsService {
     });
 
     const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${uuidv4()}${ext}`;
-    const uploadDir = path.join(__dirname, '..', '..', '..', 'uploads', 'logos');
-
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    if (!allowedExtensions.includes(ext)) {
+      throw new BadRequestException(`Invalid file type. Allowed: ${allowedExtensions.join(', ')}`);
     }
 
+    const filename = `${uuidv4()}${ext}`;
+    const uploadDir = path.resolve(__dirname, '..', '..', '..', 'uploads', 'logos');
+
+    await fs.promises.mkdir(uploadDir, { recursive: true });
+
     const filePath = path.join(uploadDir, filename);
-    fs.writeFileSync(filePath, file.buffer);
+    await fs.promises.writeFile(filePath, file.buffer);
 
     const logoUrl = `/uploads/logos/${filename}`;
 
     // Clean up old logo file
     if (currentOrg?.logoUrl) {
       try {
-        const oldFilePath = path.join(__dirname, '..', '..', '..', currentOrg.logoUrl);
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
+        const oldFilePath = path.resolve(uploadDir, path.basename(currentOrg.logoUrl));
+        await fs.promises.unlink(oldFilePath);
       } catch {
         // Ignore cleanup errors
       }
@@ -97,10 +98,9 @@ export class OrganizationsService {
 
     if (org?.logoUrl) {
       try {
-        const filePath = path.join(__dirname, '..', '..', '..', org.logoUrl);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+        const uploadDir = path.resolve(__dirname, '..', '..', '..', 'uploads', 'logos');
+        const filePath = path.resolve(uploadDir, path.basename(org.logoUrl));
+        await fs.promises.unlink(filePath);
       } catch {
         // Ignore cleanup errors
       }
@@ -237,6 +237,16 @@ export class OrganizationsService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    // Look up role before transaction (Role is not tenant-scoped, findFirst avoids middleware issue)
+    const role = await this.prisma.role.findFirst({
+      where: { name: invitation.roleName },
+    });
+    if (!role) {
+      throw new BadRequestException(
+        `System configuration error: ${invitation.roleName} role not found. Please run database seed.`,
+      );
+    }
+
     // Create user + assign role + mark invitation accepted
     const result = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -249,15 +259,9 @@ export class OrganizationsService {
         },
       });
 
-      const role = await tx.role.findUnique({
-        where: { name: invitation.roleName },
+      await tx.userRole.create({
+        data: { userId: user.id, roleId: role.id },
       });
-
-      if (role) {
-        await tx.userRole.create({
-          data: { userId: user.id, roleId: role.id },
-        });
-      }
 
       await tx.orgInvitation.update({
         where: { id: invitation.id },

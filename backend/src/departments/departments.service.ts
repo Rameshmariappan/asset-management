@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -97,6 +97,10 @@ export class DepartmentsService {
       throw new NotFoundException('Department not found');
     }
 
+    if (updateDepartmentDto.parentId === id) {
+      throw new BadRequestException('Department cannot be its own parent');
+    }
+
     if (updateDepartmentDto.code && updateDepartmentDto.code !== existing.code) {
       const codeExists = await this.prisma.department.findUnique({
         where: { code: updateDepartmentDto.code },
@@ -126,21 +130,22 @@ export class DepartmentsService {
   async remove(id: string) {
     const department = await this.prisma.department.findUnique({
       where: { id },
-      include: {
-        users: true,
-        children: true,
-      },
     });
 
     if (!department) {
       throw new NotFoundException('Department not found');
     }
 
-    if (department.users.length > 0) {
+    const [userCount, childCount] = await Promise.all([
+      this.prisma.user.count({ where: { departmentId: id } }),
+      this.prisma.department.count({ where: { parentId: id } }),
+    ]);
+
+    if (userCount > 0) {
       throw new ConflictException('Cannot delete department with assigned users');
     }
 
-    if (department.children.length > 0) {
+    if (childCount > 0) {
       throw new ConflictException('Cannot delete department with child departments');
     }
 

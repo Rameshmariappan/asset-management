@@ -28,15 +28,16 @@ export class ReportsService {
         location: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 10000,
     });
 
     const data = assets.map((asset) => ({
       'Asset Tag': asset.assetTag,
       'Serial Number': asset.serialNumber || '',
       'Name': asset.name,
-      'Category': asset.category.name,
-      'Vendor': asset.vendor.name,
-      'Location': asset.location.name,
+      'Category': asset.category?.name || '',
+      'Vendor': asset.vendor?.name || '',
+      'Location': asset.location?.name || '',
       'Status': asset.status,
       'Purchase Date': asset.purchaseDate.toISOString().split('T')[0],
       'Purchase Cost': asset.purchaseCost.toString(),
@@ -73,6 +74,7 @@ export class ReportsService {
         assignedByUser: { select: { firstName: true, lastName: true } },
       },
       orderBy: { assignedAt: 'desc' },
+      take: 10000,
     });
 
     const data = assignments.map((assignment) => ({
@@ -118,6 +120,7 @@ export class ReportsService {
         requestedByUser: { select: { firstName: true, lastName: true } },
       },
       orderBy: { requestedAt: 'desc' },
+      take: 10000,
     });
 
     const data = transfers.map((transfer) => ({
@@ -156,6 +159,7 @@ export class ReportsService {
         },
       },
       orderBy: { createdAt: 'desc' },
+      take: 10000,
     });
 
     const data = users.map((user) => ({
@@ -232,11 +236,13 @@ export class ReportsService {
       ...data.map((row) =>
         headers
           .map((header) => {
-            const value = row[header]?.toString() || '';
-            // Escape quotes and wrap in quotes if contains comma
-            return value.includes(',') || value.includes('"')
-              ? `"${value.replace(/"/g, '""')}"`
-              : value;
+            let value = row[header]?.toString() || '';
+            // Prevent CSV injection: prefix dangerous characters with a single quote
+            if (/^[=+\-@\t\r]/.test(value)) {
+              value = `'${value}`;
+            }
+            // Always quote values to handle commas, quotes, and newlines
+            return `"${value.replace(/"/g, '""')}"`;
           })
           .join(','),
       ),

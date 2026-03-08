@@ -99,6 +99,7 @@ export class AuditLogsService {
         entityId,
       },
       orderBy: { createdAt: 'desc' },
+      take: 500,
       include: {
         user: {
           select: {

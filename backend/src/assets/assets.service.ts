@@ -37,13 +37,18 @@ export class AssetsService {
       }
     }
 
-    // Calculate current value based on depreciation if category has depreciation rate
+    // Validate category exists
     let currentValue = createAssetDto.purchaseCost;
     const category = await this.prisma.category.findUnique({
       where: { id: createAssetDto.categoryId },
     });
 
-    if (category?.depreciationRate && category?.usefulLifeYears) {
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    // Calculate current value based on depreciation if category has depreciation rate
+    if (category.depreciationRate && category.usefulLifeYears) {
       const purchaseDate = new Date(createAssetDto.purchaseDate);
       const now = new Date();
       const yearsOwned = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24 * 365);

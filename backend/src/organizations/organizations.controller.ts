@@ -42,11 +42,11 @@ export class OrganizationsController {
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 2 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+      const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
       if (allowed.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new BadRequestException('Only PNG, JPG, SVG, and WebP files are allowed'), false);
+        cb(new BadRequestException('Only PNG, JPG, GIF, and WebP files are allowed'), false);
       }
     },
   }))

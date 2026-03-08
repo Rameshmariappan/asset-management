@@ -7,6 +7,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { TagsService } from './tags.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { GenerateLabelSheetDto } from './dto/generate-label-sheet.dto';
 
 @ApiTags('tags')
 @ApiBearerAuth('JWT-auth')
@@ -45,7 +46,7 @@ export class TagsController {
   @Roles('SUPER_ADMIN', 'ASSET_MANAGER')
   @ApiOperation({ summary: 'Generate printable label sheet for multiple assets' })
   @ApiResponse({ status: 200, description: 'Label sheet generated successfully' })
-  generateLabelSheet(@Body('assetIds') assetIds: string[]) {
-    return this.service.generateLabelSheet(assetIds);
+  generateLabelSheet(@Body() dto: GenerateLabelSheetDto) {
+    return this.service.generateLabelSheet(dto.assetIds);
   }
 }

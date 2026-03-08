@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, IsEnum, IsInt, Min, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsUUID, IsEnum, IsInt, Min, IsDateString, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AssetStatus } from '@prisma/client';
 
@@ -60,13 +60,13 @@ export class QueryAssetDto {
   @Type(() => Number)
   limit?: number = 20;
 
-  @ApiProperty({ required: false, example: 'createdAt' })
+  @ApiProperty({ required: false, example: 'createdAt', enum: ['createdAt', 'updatedAt', 'name', 'assetTag', 'purchaseDate', 'purchaseCost', 'status'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['createdAt', 'updatedAt', 'name', 'assetTag', 'purchaseDate', 'purchaseCost', 'status'])
   sortBy?: string = 'createdAt';
 
   @ApiProperty({ required: false, example: 'desc', enum: ['asc', 'desc'] })
   @IsOptional()
-  @IsString()
+  @IsIn(['asc', 'desc'])
   sortOrder?: 'asc' | 'desc' = 'desc';
 }

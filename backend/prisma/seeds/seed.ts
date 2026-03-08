@@ -6,14 +6,25 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting database seeding...');
 
-  // Clean existing data
+  // Clean existing data (order matters — delete dependents first)
   console.log('Cleaning existing data...');
+  await prisma.notification.deleteMany();
+  await prisma.auditLog.deleteMany();
+  await prisma.assetTransfer.deleteMany();
+  await prisma.assetAssignment.deleteMany();
+  await prisma.asset.deleteMany();
   await prisma.rolePermission.deleteMany();
   await prisma.userRole.deleteMany();
+  await prisma.refreshToken.deleteMany();
+  await prisma.passwordResetToken.deleteMany();
+  await prisma.mfaSecret.deleteMany();
+  await prisma.orgInvitation.deleteMany();
   await prisma.permission.deleteMany();
   await prisma.role.deleteMany();
-  await prisma.orgInvitation.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.vendor.deleteMany();
+  await prisma.location.deleteMany();
   await prisma.department.deleteMany();
   await prisma.organization.deleteMany();
 

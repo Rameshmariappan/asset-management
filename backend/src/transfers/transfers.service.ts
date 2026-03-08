@@ -44,7 +44,12 @@ export class TransfersService {
       }
 
       // Verify asset is currently assigned to fromUser
-      if (asset.assignments.length > 0 && asset.assignments[0].assignedToUserId !== createDto.fromUserId) {
+      if (asset.assignments.length === 0) {
+        throw new BadRequestException(
+          'Asset is not currently assigned to anyone',
+        );
+      }
+      if (asset.assignments[0].assignedToUserId !== createDto.fromUserId) {
         throw new BadRequestException(
           'Asset is not currently assigned to the specified from user',
         );
@@ -494,6 +499,7 @@ export class TransfersService {
         },
       },
       orderBy: { requestedAt: 'asc' },
+      take: 1000,
       include: {
         asset: {
           select: {

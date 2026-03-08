@@ -74,9 +74,10 @@ export class AuditLogInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    // Parse the route to determine entity type
+    // Parse the route to determine entity type (skip API prefix like 'v1')
     const url: string = request.route?.path || request.url;
-    const basePath = url.split('/').filter(Boolean)[0];
+    const segments = url.split('/').filter(Boolean);
+    const basePath = segments[0] === 'v1' ? segments[1] : segments[0];
 
     if (SKIP_ROUTE_PREFIXES.includes(basePath)) {
       return next.handle();
@@ -147,11 +148,13 @@ export class AuditLogInterceptor implements NestInterceptor {
     const sanitized = { ...data };
     const sensitiveFields = [
       'password',
+      'passwordHash',
       'hashedPassword',
       'refreshToken',
       'mfaSecret',
       'accessToken',
       'token',
+      'tokenHash',
     ];
 
     for (const field of sensitiveFields) {

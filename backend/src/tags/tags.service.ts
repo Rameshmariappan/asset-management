@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as QRCode from 'qrcode';
 import * as bwipjs from 'bwip-js';
@@ -80,7 +80,7 @@ export class TagsService {
         assetTag: asset.assetTag,
       };
     } catch (error) {
-      throw new Error(`Failed to generate barcode: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to generate barcode: ${error.message}`);
     }
   }
 

@@ -88,16 +88,15 @@ export class VendorsService {
   async remove(id: string) {
     const vendor = await this.prisma.vendor.findUnique({
       where: { id },
-      include: {
-        assets: true,
-      },
     });
 
     if (!vendor) {
       throw new NotFoundException('Vendor not found');
     }
 
-    if (vendor.assets.length > 0) {
+    const assetCount = await this.prisma.asset.count({ where: { vendorId: id } });
+
+    if (assetCount > 0) {
       throw new ConflictException('Cannot delete vendor with assigned assets');
     }
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto, BulkNotificationDto } from './dto/create-notification.dto';
@@ -136,7 +136,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new Error('Notification not found');
+      throw new NotFoundException('Notification not found');
     }
 
     return this.prisma.notification.update({
@@ -175,7 +175,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new Error('Notification not found');
+      throw new NotFoundException('Notification not found');
     }
 
     await this.prisma.notification.delete({
