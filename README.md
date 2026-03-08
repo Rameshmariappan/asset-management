@@ -47,8 +47,8 @@ A premium, enterprise-grade asset tracking web application for managing physical
 
 ### Prerequisites
 - Node.js 20+
-- Docker & Docker Compose
-- npm or pnpm
+- Docker & Docker Compose **or** local PostgreSQL + Redis (see below)
+- npm
 
 ### Installation
 
@@ -64,8 +64,27 @@ A premium, enterprise-grade asset tracking web application for managing physical
    ```
 
 3. **Start database services**
+
+   **Option A: Docker (recommended)**
    ```bash
    docker-compose up -d
+   ```
+
+   **Option B: Local setup (macOS with Homebrew)**
+   ```bash
+   # Install PostgreSQL and Redis
+   brew install postgresql@14 redis
+
+   # Start services
+   brew services start postgresql@14
+   brew services start redis
+
+   # Create the database
+   createdb asset_management
+   ```
+   Then update `backend/.env` with your local connection string:
+   ```
+   DATABASE_URL=postgresql://<your-user>@localhost:5432/asset_management?schema=public
    ```
 
 4. **Setup backend**

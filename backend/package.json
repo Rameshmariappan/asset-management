@@ -4,7 +4,6 @@
   "description": "Asset Tracking System - Backend API",
   "private": true,
   "scripts": {
-    "prebuild": "rimraf dist",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
