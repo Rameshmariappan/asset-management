@@ -9,6 +9,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as speakeasy from 'speakeasy';
+import * as qrcode from 'qrcode';
 
 jest.mock('bcrypt');
 jest.mock('speakeasy');
@@ -55,7 +57,10 @@ describe('AuthService', () => {
     userRole: {
       create: jest.fn(),
     },
-    $transaction: jest.fn((cb) => cb(mockPrisma)),
+    $transaction: jest.fn((cb) => {
+      if (typeof cb === 'function') return cb(mockPrisma);
+      return Promise.all(cb);
+    }),
   };
 
   const mockJwtService = {
@@ -334,6 +339,251 @@ describe('AuthService', () => {
       await expect(
         service.resetPassword({ token: 'expired', newPassword: 'New@123' }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('login - inactive organization', () => {
+    const loginDto = { email: 'test@example.com', password: 'Password@123' };
+
+    it('should throw UnauthorizedException when organization is inactive', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        passwordHash: 'hashed-password',
+        isActive: true,
+        isMfaEnabled: false,
+        tenantId: 'tenant-1',
+        isPlatformAdmin: false,
+        organization: { id: 'org-1', name: 'Test Org', isActive: false },
+        userRoles: [{ role: { name: 'EMPLOYEE' } }],
+        mfaSecret: null,
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await expect(service.login(loginDto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('login - MFA verification', () => {
+    const mfaUser = {
+      id: 'user-1',
+      email: 'test@example.com',
+      passwordHash: 'hashed-password',
+      isActive: true,
+      isMfaEnabled: true,
+      tenantId: 'tenant-1',
+      isPlatformAdmin: false,
+      firstName: 'Test',
+      lastName: 'User',
+      organization: { id: 'org-1', name: 'Test Org', slug: 'test-org', logoUrl: null, isActive: true },
+      userRoles: [{ role: { name: 'EMPLOYEE' } }],
+      mfaSecret: { secret: 'base32-secret' },
+    };
+
+    it('should login successfully with valid MFA code', async () => {
+      prisma.user.findFirst.mockResolvedValue(mfaUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(true);
+      prisma.refreshToken.create.mockResolvedValue({});
+
+      const result = await service.login({
+        email: 'test@example.com',
+        password: 'Password@123',
+        mfaCode: '123456',
+      });
+
+      expect(result.accessToken).toBeDefined();
+      expect(result.user.email).toBe('test@example.com');
+    });
+
+    it('should throw UnauthorizedException for invalid MFA code', async () => {
+      prisma.user.findFirst.mockResolvedValue(mfaUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(false);
+
+      await expect(
+        service.login({
+          email: 'test@example.com',
+          password: 'Password@123',
+          mfaCode: '000000',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('register - SUPER_ADMIN role not found', () => {
+    it('should throw BadRequestException when SUPER_ADMIN role missing', async () => {
+      prisma.user.findFirst.mockResolvedValue(null);
+      prisma.role.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.register({
+          email: 'new@example.com',
+          password: 'Password@123',
+          firstName: 'New',
+          lastName: 'User',
+          organizationName: 'Org',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('refreshTokens - success', () => {
+    it('should rotate tokens and return new pair', async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        id: 'rt-1',
+        userId: 'user-1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+        ipAddress: '127.0.0.1',
+        userAgent: 'TestAgent',
+        user: {
+          email: 'test@example.com',
+          tenantId: 'tenant-1',
+          userRoles: [{ role: { name: 'EMPLOYEE' } }],
+        },
+      });
+      prisma.refreshToken.update.mockResolvedValue({});
+      prisma.refreshToken.create.mockResolvedValue({});
+
+      const result = await service.refreshTokens('user-1', 'valid-token');
+
+      expect(result.accessToken).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    });
+  });
+
+  describe('setupMfa', () => {
+    it('should generate secret and QR code', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+      });
+      (speakeasy.generateSecret as jest.Mock).mockReturnValue({
+        base32: 'MOCK_SECRET',
+        otpauth_url: 'otpauth://totp/test',
+      });
+      (qrcode.toDataURL as jest.Mock).mockResolvedValue('data:image/png;base64,...');
+      prisma.mfaSecret.upsert.mockResolvedValue({});
+
+      const result = await service.setupMfa('user-1');
+
+      expect(result.secret).toBe('MOCK_SECRET');
+      expect(result.qrCode).toBeDefined();
+      expect(result.message).toContain('MFA setup initiated');
+    });
+
+    it('should throw BadRequestException if user not found', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.setupMfa('bad-user')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('verifyAndEnableMfa', () => {
+    it('should enable MFA with valid code and return backup codes', async () => {
+      prisma.mfaSecret.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        secret: 'MOCK_SECRET',
+      });
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-backup');
+      prisma.mfaSecret.update.mockResolvedValue({});
+      prisma.user.update.mockResolvedValue({});
+
+      const result = await service.verifyAndEnableMfa('user-1', '123456');
+
+      expect(result.message).toContain('MFA enabled');
+      expect(result.backupCodes).toBeDefined();
+      expect(result.backupCodes.length).toBe(10);
+    });
+
+    it('should throw BadRequestException if MFA not set up', async () => {
+      prisma.mfaSecret.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.verifyAndEnableMfa('user-1', '123456'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for invalid code', async () => {
+      prisma.mfaSecret.findUnique.mockResolvedValue({
+        userId: 'user-1',
+        secret: 'MOCK_SECRET',
+      });
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(false);
+
+      await expect(
+        service.verifyAndEnableMfa('user-1', '000000'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('disableMfa', () => {
+    it('should disable MFA with valid code', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        mfaSecret: { secret: 'MOCK_SECRET' },
+      });
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(true);
+      prisma.mfaSecret.delete.mockResolvedValue({});
+      prisma.user.update.mockResolvedValue({});
+
+      const result = await service.disableMfa('user-1', '123456');
+
+      expect(result.message).toContain('MFA disabled');
+    });
+
+    it('should throw BadRequestException if MFA not enabled', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        mfaSecret: null,
+      });
+
+      await expect(service.disableMfa('user-1', '123456')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException for invalid code', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'user-1',
+        mfaSecret: { secret: 'MOCK_SECRET' },
+      });
+      (speakeasy.totp.verify as jest.Mock).mockReturnValue(false);
+
+      await expect(service.disableMfa('user-1', '000000')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('resetPassword - success', () => {
+    it('should reset password and revoke all refresh tokens', async () => {
+      prisma.passwordResetToken.findUnique.mockResolvedValue({
+        id: 'prt-1',
+        userId: 'user-1',
+        usedAt: null,
+        expiresAt: new Date(Date.now() + 3600000),
+        user: { id: 'user-1' },
+      });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed-pw');
+      prisma.user.update.mockResolvedValue({});
+      prisma.passwordResetToken.update.mockResolvedValue({});
+      prisma.refreshToken.updateMany.mockResolvedValue({});
+
+      const result = await service.resetPassword({
+        token: 'valid-token',
+        newPassword: 'NewPass@123',
+      });
+
+      expect(result.message).toContain('Password has been reset');
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
   });
 

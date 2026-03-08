@@ -244,6 +244,164 @@ describe('AssetsService', () => {
     });
   });
 
+  describe('findAll', () => {
+    it('should return paginated assets', async () => {
+      const queryDto = { page: 1, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' as const };
+      prisma.asset.count.mockResolvedValue(1);
+      prisma.asset.findMany.mockResolvedValue([{ id: 'a1' }]);
+
+      const result = await service.findAll(queryDto);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.total).toBe(1);
+      expect(result.meta.totalPages).toBe(1);
+    });
+
+    it('should apply search filter', async () => {
+      const queryDto = { page: 1, limit: 10, search: 'laptop', sortBy: 'createdAt', sortOrder: 'desc' as const };
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll(queryDto);
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ OR: expect.any(Array) }) }),
+      );
+    });
+
+    it('should apply categoryId filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({ page: 1, limit: 10, categoryId: 'cat-1', sortBy: 'createdAt', sortOrder: 'desc' as const });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ categoryId: 'cat-1' }) }),
+      );
+    });
+
+    it('should apply vendorId filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({ page: 1, limit: 10, vendorId: 'v-1', sortBy: 'createdAt', sortOrder: 'desc' as const });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ vendorId: 'v-1' }) }),
+      );
+    });
+
+    it('should apply locationId filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({ page: 1, limit: 10, locationId: 'loc-1', sortBy: 'createdAt', sortOrder: 'desc' as const });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ locationId: 'loc-1' }) }),
+      );
+    });
+
+    it('should apply status filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({ page: 1, limit: 10, status: 'available', sortBy: 'createdAt', sortOrder: 'desc' as const });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'available' }) }),
+      );
+    });
+
+    it('should apply purchase date range filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({
+        page: 1, limit: 10,
+        purchaseDateFrom: '2024-01-01', purchaseDateTo: '2024-12-31',
+        sortBy: 'createdAt', sortOrder: 'desc' as const,
+      });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            purchaseDate: { gte: expect.any(Date), lte: expect.any(Date) },
+          }),
+        }),
+      );
+    });
+
+    it('should apply warrantyExpiringInDays filter', async () => {
+      prisma.asset.count.mockResolvedValue(0);
+      prisma.asset.findMany.mockResolvedValue([]);
+
+      await service.findAll({
+        page: 1, limit: 10,
+        warrantyExpiringInDays: 30,
+        sortBy: 'createdAt', sortOrder: 'desc' as const,
+      });
+
+      expect(prisma.asset.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            warrantyEndDate: { gte: expect.any(Date), lte: expect.any(Date) },
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('create - category not found', () => {
+    it('should throw NotFoundException if category not found', async () => {
+      prisma.asset.findUnique.mockResolvedValue(null);
+      prisma.category.findUnique.mockResolvedValue(null);
+
+      await expect(service.create({
+        assetTag: 'AST-999', name: 'Test', categoryId: 'bad-cat',
+        purchaseCost: 100, purchaseDate: '2024-01-01',
+      } as any)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update - serial number conflict', () => {
+    it('should throw ConflictException if new serial number exists', async () => {
+      prisma.asset.findUnique
+        .mockResolvedValueOnce({ id: 'a1', assetTag: 'AST-001', serialNumber: 'SN-001', deletedAt: null })
+        .mockResolvedValueOnce({ id: 'a2', serialNumber: 'SN-002' }); // serial conflict
+
+      await expect(
+        service.update('a1', { serialNumber: 'SN-002' } as any),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('getAssetHistory', () => {
+    it('should return assignments and transfers history', async () => {
+      prisma.asset.findUnique.mockResolvedValue({ id: 'a1', assetTag: 'AST-001', name: 'Laptop', deletedAt: null });
+      prisma.assetAssignment.findMany.mockResolvedValue([{ id: 'assign-1' }]);
+      prisma.assetTransfer.findMany.mockResolvedValue([{ id: 'transfer-1' }]);
+
+      const result = await service.getAssetHistory('a1');
+
+      expect(result.asset.assetTag).toBe('AST-001');
+      expect(result.assignments).toHaveLength(1);
+      expect(result.transfers).toHaveLength(1);
+    });
+
+    it('should throw NotFoundException when asset not found', async () => {
+      prisma.asset.findUnique.mockResolvedValue(null);
+
+      await expect(service.getAssetHistory('x')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException for soft-deleted asset', async () => {
+      prisma.asset.findUnique.mockResolvedValue({ id: 'a1', deletedAt: new Date() });
+
+      await expect(service.getAssetHistory('a1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('updateStatus', () => {
     it('should throw NotFoundException if asset not found', async () => {
       prisma.asset.findUnique.mockResolvedValue(null);
@@ -263,6 +421,25 @@ describe('AssetsService', () => {
       await expect(
         service.updateStatus('asset-1', 'assigned' as any),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should update status successfully for non-assigned status', async () => {
+      prisma.asset.findUnique.mockResolvedValue({ id: 'asset-1', deletedAt: null });
+      prisma.asset.update.mockResolvedValue({ id: 'asset-1', status: 'maintenance' });
+
+      const result = await service.updateStatus('asset-1', 'maintenance' as any);
+
+      expect(result.status).toBe('maintenance');
+    });
+
+    it('should allow marking as assigned when active assignment exists', async () => {
+      prisma.asset.findUnique.mockResolvedValue({ id: 'asset-1', deletedAt: null });
+      prisma.assetAssignment.count.mockResolvedValue(1);
+      prisma.asset.update.mockResolvedValue({ id: 'asset-1', status: 'assigned' });
+
+      const result = await service.updateStatus('asset-1', 'assigned' as any);
+
+      expect(result.status).toBe('assigned');
     });
   });
 
