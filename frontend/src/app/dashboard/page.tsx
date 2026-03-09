@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/page-header'
 import { StatCard } from '@/components/stat-card'
 import { Package, Users, TrendingUp, AlertCircle, Clock } from 'lucide-react'
+import { usePermissions } from '@/lib/permissions'
 import {
   useAssetStatistics,
   useAssignmentStatistics,
@@ -14,10 +15,11 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 
 export default function DashboardPage() {
+  const { canViewRecentAuditLogs } = usePermissions()
   const { data: assetStats, isLoading: assetStatsLoading } = useAssetStatistics()
   const { data: assignmentStats, isLoading: assignmentStatsLoading } = useAssignmentStatistics()
   const { data: transferStats, isLoading: transferStatsLoading } = useTransferStatistics()
-  const { data: recentLogs, isLoading: logsLoading } = useRecentAuditLogs(5)
+  const { data: recentLogs, isLoading: logsLoading } = useRecentAuditLogs(5, canViewRecentAuditLogs)
 
   const getStatusBadgeVariant = (status: string) => {
     const variants: Record<string, any> = {
@@ -76,7 +78,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Recent Activity */}
-        <Card>
+        {canViewRecentAuditLogs && <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
@@ -117,7 +119,7 @@ export default function DashboardPage() {
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card>}
       </div>
 
       {/* Quick Actions */}

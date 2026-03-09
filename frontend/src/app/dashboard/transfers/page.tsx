@@ -158,7 +158,7 @@ export default function TransfersPage() {
   const [notes, setNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
 
-  const { canViewTransfers, canApproveTransferAsManager, canApproveTransferAsAdmin, canRejectTransfer } = usePermissions()
+  const { canViewTransfers, canCreateTransfer, canApproveTransferAsManager, canApproveTransferAsAdmin, canRejectTransfer } = usePermissions()
 
   const { data, isLoading } = useTransfers(canViewTransfers ? { page, limit: 20, status } : undefined)
   const { data: stats } = useTransferStatistics()
@@ -231,7 +231,7 @@ export default function TransfersPage() {
       <PageHeader
         title="Transfers"
         description="Manage asset transfer requests and approvals"
-        action={<Button onClick={() => setShowCreate(true)}><ArrowRightLeft className="mr-2 h-4 w-4" /> Request Transfer</Button>}
+        action={canCreateTransfer ? <Button onClick={() => setShowCreate(true)}><ArrowRightLeft className="mr-2 h-4 w-4" /> Request Transfer</Button> : undefined}
       />
 
       <div className="grid gap-4 md:grid-cols-5">

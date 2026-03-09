@@ -1,11 +1,17 @@
 'use client'
 
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { FileText, Download } from 'lucide-react'
 
 export default function ReportsPage() {
-  const reports = [
+  const { canViewReports, canViewAuditLogs } = usePermissions()
+
+  if (!canViewReports) return <AccessDenied />
+
+  const allReports = [
     {
       name: 'Assets Report',
       description: 'Complete list of all assets with details',
@@ -21,6 +27,7 @@ export default function ReportsPage() {
       description: 'Transfer requests and approval history',
       endpoint: '/reports/transfers',
     },
+    ...( canViewAuditLogs ? [
     {
       name: 'Users Report',
       description: 'User list with roles and departments',
@@ -31,6 +38,7 @@ export default function ReportsPage() {
       description: 'System activity and change logs',
       endpoint: '/reports/audit-logs',
     },
+    ] : []),
   ]
 
   const handleDownload = (endpoint: string, format: string) => {
@@ -48,7 +56,7 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {reports.map((report) => (
+        {allReports.map((report) => (
           <Card key={report.name}>
             <CardHeader>
               <div className="flex items-start justify-between">

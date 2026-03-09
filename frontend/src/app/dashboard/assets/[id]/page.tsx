@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
 import { QrCode, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
+import { usePermissions } from '@/lib/permissions'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -18,6 +19,7 @@ export default function AssetDetailPage() {
   const { data: asset, isLoading } = useAsset(id)
   const { data: history } = useAssetHistory(id)
   const generateTags = useGenerateBothTags()
+  const { canManageTags } = usePermissions()
 
   const getStatusBadgeVariant = (status: string) => {
     const variants: Record<string, any> = {
@@ -67,10 +69,12 @@ export default function AssetDetailPage() {
         action={
           <div className="flex items-center gap-3">
             <Badge variant={getStatusBadgeVariant(asset.status)}>{asset.status}</Badge>
+            {canManageTags && (
             <Button variant="outline" onClick={handleGenerateTags} disabled={generateTags.isPending}>
               {generateTags.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
               Generate Tags
             </Button>
+            )}
           </div>
         }
       />

@@ -7,12 +7,17 @@ import { QrCode } from 'lucide-react'
 import { useState } from 'react'
 import { formatDateTime } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
+import { usePermissions } from '@/lib/permissions'
+import { AccessDenied } from '@/components/access-denied'
 import { Pagination } from '@/components/pagination'
 import { EmptyState } from '@/components/empty-state'
 
 export default function TagsPage() {
+  const { canManageTags } = usePermissions()
   const [page, setPage] = useState(1)
   const { data, isLoading } = useTags({ page, limit: 20 })
+
+  if (!canManageTags) return <AccessDenied />
 
   const getStatusBadgeVariant = (status: string) => {
     const variants: Record<string, any> = {

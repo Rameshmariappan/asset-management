@@ -156,7 +156,7 @@ export function useAuditLogs(params?: any) {
   })
 }
 
-export function useRecentAuditLogs(limit: number = 10) {
+export function useRecentAuditLogs(limit: number = 10, enabled: boolean = true) {
   return useQuery({
     queryKey: ['audit-logs', 'recent', limit],
     queryFn: async () => {
@@ -165,6 +165,7 @@ export function useRecentAuditLogs(limit: number = 10) {
       })
       return response.data
     },
+    enabled,
   })
 }
 
@@ -724,6 +725,69 @@ export function useDeleteOrganizationLogo() {
     mutationFn: async () => {
       const response = await apiClient.delete('/organizations/me/logo')
       return response.data
+    },
+  })
+}
+
+// Platform Admin — Dashboard Stats
+export function usePlatformDashboard() {
+  return useQuery({
+    queryKey: ['platform', 'dashboard'],
+    queryFn: async () => {
+      const response = await apiClient.get('/platform/dashboard')
+      return response.data
+    },
+    staleTime: 60000,
+  })
+}
+
+// Platform Admin — List Organizations
+export function usePlatformOrganizations(params?: { search?: string; isActive?: string }) {
+  return useQuery({
+    queryKey: ['platform', 'organizations', params],
+    queryFn: async () => {
+      const response = await apiClient.get('/platform/organizations', { params })
+      return response.data
+    },
+    staleTime: 30000,
+  })
+}
+
+// Platform Admin — Get Single Organization
+export function usePlatformOrganization(id: string) {
+  return useQuery({
+    queryKey: ['platform', 'organizations', id],
+    queryFn: async () => {
+      const response = await apiClient.get(`/platform/organizations/${id}`)
+      return response.data
+    },
+    enabled: !!id,
+  })
+}
+
+// Platform Admin — Organization Stats
+export function usePlatformOrgStats(id: string) {
+  return useQuery({
+    queryKey: ['platform', 'organizations', id, 'stats'],
+    queryFn: async () => {
+      const response = await apiClient.get(`/platform/organizations/${id}/stats`)
+      return response.data
+    },
+    enabled: !!id,
+    staleTime: 60000,
+  })
+}
+
+// Platform Admin — Update Organization
+export function useUpdatePlatformOrganization() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { name?: string; isActive?: boolean } }) => {
+      const response = await apiClient.patch(`/platform/organizations/${id}`, data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['platform'] })
     },
   })
 }

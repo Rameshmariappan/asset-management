@@ -34,7 +34,88 @@ export class PlatformService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return organizations;
+    // Batch-fetch asset counts per org to avoid N+1
+    const assetCounts = await this.prisma.asset.groupBy({
+      by: ['tenantId'],
+      _count: true,
+      where: { deletedAt: null },
+    });
+
+    const assetCountMap = new Map(
+      assetCounts.map((ac) => [ac.tenantId, ac._count]),
+    );
+
+    return organizations.map((org) => ({
+      ...org,
+      _count: {
+        ...org._count,
+        assets: assetCountMap.get(org.id) || 0,
+      },
+    }));
+  }
+
+  /**
+   * Aggregated dashboard stats across ALL organizations
+   */
+  async getDashboardStats() {
+    const [
+      totalOrganizations,
+      activeOrganizations,
+      totalUsers,
+      totalAssets,
+      assetValueAgg,
+    ] = await Promise.all([
+      this.prisma.organization.count(),
+      this.prisma.organization.count({ where: { isActive: true } }),
+      this.prisma.user.count({ where: { deletedAt: null } }),
+      this.prisma.asset.count({ where: { deletedAt: null } }),
+      this.prisma.asset.aggregate({
+        _sum: { currentValue: true },
+        where: { deletedAt: null },
+      }),
+    ]);
+
+    return {
+      totalOrganizations,
+      activeOrganizations,
+      totalUsers,
+      totalAssets,
+      totalAssetValue: assetValueAgg._sum.currentValue || 0,
+    };
+  }
+
+  /**
+   * Stats for a single organization
+   */
+  async getOrganizationStats(orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!org) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const [userCount, assetCount, assetValueAgg, activeAssignments, departmentCount] =
+      await Promise.all([
+        this.prisma.user.count({ where: { tenantId: orgId, deletedAt: null } }),
+        this.prisma.asset.count({ where: { tenantId: orgId, deletedAt: null } }),
+        this.prisma.asset.aggregate({
+          _sum: { currentValue: true, purchaseCost: true },
+          where: { tenantId: orgId, deletedAt: null },
+        }),
+        this.prisma.assetAssignment.count({ where: { tenantId: orgId, isActive: true } }),
+        this.prisma.department.count({ where: { tenantId: orgId } }),
+      ]);
+
+    return {
+      userCount,
+      assetCount,
+      totalAssetValue: assetValueAgg._sum.currentValue || 0,
+      totalPurchaseCost: assetValueAgg._sum.purchaseCost || 0,
+      activeAssignments,
+      departmentCount,
+    };
   }
 
   /**

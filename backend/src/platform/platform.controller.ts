@@ -12,6 +12,12 @@ import { PlatformAdminGuard } from '../auth/guards/platform-admin.guard';
 export class PlatformController {
   constructor(private readonly service: PlatformService) {}
 
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Get aggregated platform dashboard stats' })
+  getDashboardStats() {
+    return this.service.getDashboardStats();
+  }
+
   @Get('organizations')
   @ApiOperation({ summary: 'List all organizations (platform admin)' })
   @ApiQuery({ name: 'search', required: false })
@@ -30,6 +36,12 @@ export class PlatformController {
   @ApiOperation({ summary: 'Get organization details (platform admin)' })
   getOrganization(@Param('id') id: string) {
     return this.service.getOrganization(id);
+  }
+
+  @Get('organizations/:id/stats')
+  @ApiOperation({ summary: 'Get organization stats (platform admin)' })
+  getOrganizationStats(@Param('id') id: string) {
+    return this.service.getOrganizationStats(id);
   }
 
   @Patch('organizations/:id')

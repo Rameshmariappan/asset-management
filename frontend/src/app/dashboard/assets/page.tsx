@@ -199,7 +199,7 @@ const AssetForm = memo(({
 AssetForm.displayName = 'AssetForm'
 
 export default function AssetsPage() {
-  const { canManageAssets } = usePermissions()
+  const { canManageAssets, canDeleteAssets } = usePermissions()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -363,14 +363,14 @@ export default function AssetsPage() {
             <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
           </Link>
           {canManageAssets && (
-            <>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEdit(asset) }}>
                 <Pencil className="h-4 w-4" />
               </Button>
+          )}
+          {canDeleteAssets && (
               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setSelectedAsset(asset); setShowDeleteDialog(true) }}>
                 <Trash2 className="h-4 w-4" />
               </Button>
-            </>
           )}
         </div>
       ),

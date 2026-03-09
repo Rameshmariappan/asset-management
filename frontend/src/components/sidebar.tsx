@@ -24,6 +24,7 @@ import {
   QrCode,
   PanelLeftClose,
   PanelLeftOpen,
+  Globe,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -42,7 +43,7 @@ function getInitials(name: string) {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
   const { user, logout } = useAuth()
-  const { canViewUserList, canManageMasterData, canManageTags, canViewReports, canViewTransfers, isPlatformAdmin } = usePermissions()
+  const { canViewUserList, canManageTags, canViewReports, canViewTransfers, isPlatformAdmin } = usePermissions()
 
   const orgName = user?.organization?.name || 'Asset Manager'
   const orgLogoUrl = user?.organization?.logoUrl ? `${API_BASE}${user.organization.logoUrl}` : null
@@ -54,10 +55,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { name: 'Transfers', href: '/dashboard/transfers', icon: ArrowRightLeft, visible: canViewTransfers },
     { name: 'Tags', href: '/dashboard/tags', icon: QrCode, visible: canManageTags },
     { name: 'Users', href: '/dashboard/users', icon: Users, visible: canViewUserList },
-    { name: 'Departments', href: '/dashboard/departments', icon: Building2, visible: canManageMasterData },
-    { name: 'Categories', href: '/dashboard/categories', icon: FolderTree, visible: canManageMasterData },
-    { name: 'Vendors', href: '/dashboard/vendors', icon: Store, visible: canManageMasterData },
-    { name: 'Locations', href: '/dashboard/locations', icon: MapPin, visible: canManageMasterData },
+    { name: 'Departments', href: '/dashboard/departments', icon: Building2, visible: true },
+    { name: 'Categories', href: '/dashboard/categories', icon: FolderTree, visible: true },
+    { name: 'Vendors', href: '/dashboard/vendors', icon: Store, visible: true },
+    { name: 'Locations', href: '/dashboard/locations', icon: MapPin, visible: true },
     { name: 'Reports', href: '/dashboard/reports', icon: FileText, visible: canViewReports },
     { name: 'Notifications', href: '/dashboard/notifications', icon: Bell, visible: true },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings, visible: true },
@@ -143,6 +144,43 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           )
         })}
+
+        {/* Platform Admin Section */}
+        {isPlatformAdmin && (
+          <>
+            <div className={cn('pt-4 pb-1', collapsed ? 'px-0' : 'px-3')}>
+              {!collapsed && (
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted">Platform</p>
+              )}
+              {collapsed && <div className="border-t border-sidebar-border" />}
+            </div>
+            {(() => {
+              const isActive = pathname.startsWith('/dashboard/platform/organizations')
+              return (
+                <Link
+                  href="/dashboard/platform/organizations"
+                  title={collapsed ? 'Organizations' : undefined}
+                  className={cn(
+                    'group flex items-center rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-fast ease-smooth',
+                    collapsed && 'justify-center px-2',
+                    isActive
+                      ? 'bg-sidebar-active-bg text-sidebar-active-fg shadow-soft'
+                      : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                  )}
+                >
+                  <Globe
+                    className={cn(
+                      'h-[18px] w-[18px] flex-shrink-0',
+                      !collapsed && 'mr-3',
+                      isActive ? 'text-sidebar-active-fg' : 'text-sidebar-muted group-hover:text-sidebar-foreground'
+                    )}
+                  />
+                  {!collapsed && 'Organizations'}
+                </Link>
+              )
+            })()}
+          </>
+        )}
       </nav>
 
       {/* User profile */}

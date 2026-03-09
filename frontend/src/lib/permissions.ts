@@ -33,11 +33,13 @@ export function usePermissions() {
 
     // Users
     canManageUsers: isAdmin,
+    canCreateUsers: isAdminOrManager,
     canEditUsers: isAdminOrManager,
     canViewUserList: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER, ROLES.DEPT_HEAD),
 
     // Assets
     canManageAssets: isAdminOrManager,
+    canDeleteAssets: isAdmin,
 
     // Assignments
     canCreateAssignment: isAdminOrManager,
@@ -45,6 +47,7 @@ export function usePermissions() {
     canViewAllAssignments: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER, ROLES.DEPT_HEAD, ROLES.AUDITOR),
 
     // Transfers
+    canCreateTransfer: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER, ROLES.DEPT_HEAD),
     canApproveTransferAsManager: hasRole(ROLES.SUPER_ADMIN, ROLES.DEPT_HEAD),
     canApproveTransferAsAdmin: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER),
     canRejectTransfer: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER, ROLES.DEPT_HEAD),
@@ -52,6 +55,7 @@ export function usePermissions() {
 
     // Master data (categories, vendors, locations, departments)
     canManageMasterData: isAdminOrManager,
+    canDeleteMasterData: isAdmin,
 
     // Reports & Tags
     canViewReports: hasRole(ROLES.SUPER_ADMIN, ROLES.ASSET_MANAGER, ROLES.AUDITOR),
@@ -59,6 +63,7 @@ export function usePermissions() {
 
     // Audit logs
     canViewAuditLogs: hasRole(ROLES.SUPER_ADMIN, ROLES.AUDITOR),
+    canViewRecentAuditLogs: hasRole(ROLES.SUPER_ADMIN, ROLES.AUDITOR, ROLES.ASSET_MANAGER),
 
     // Roles
     canViewRoles: isAdminOrManager,

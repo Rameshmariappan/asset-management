@@ -76,7 +76,7 @@ const UserForm = memo(({ form, setForm, onSubmit, loading, isEdit, departments, 
 UserForm.displayName = 'UserForm'
 
 export default function UsersPage() {
-  const { canViewUserList, canManageUsers, canEditUsers } = usePermissions()
+  const { canViewUserList, canManageUsers, canCreateUsers, canEditUsers } = usePermissions()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
@@ -216,7 +216,7 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         description="Manage system users and their roles"
-        action={canManageUsers ? (
+        action={canCreateUsers ? (
           <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}>
             <Plus className="mr-2 h-4 w-4" /> Add User
           </Button>

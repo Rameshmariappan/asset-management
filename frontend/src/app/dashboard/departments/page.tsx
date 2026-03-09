@@ -12,7 +12,6 @@ import { useDepartments, useCreateDepartment, useUpdateDepartment, useDeleteDepa
 import { Building2, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
-import { AccessDenied } from '@/components/access-denied'
 import { PageHeader } from '@/components/page-header'
 import { Pagination } from '@/components/pagination'
 import { EmptyState } from '@/components/empty-state'
@@ -52,9 +51,8 @@ export default function DepartmentsPage() {
   const createMutation = useCreateDepartment()
   const updateMutation = useUpdateDepartment()
   const deleteMutation = useDeleteDepartment()
-  const { canManageMasterData } = usePermissions()
+  const { canManageMasterData, canDeleteMasterData } = usePermissions()
 
-  if (!canManageMasterData) return <AccessDenied />
 
   const handleCreate = async () => {
     try {
@@ -99,7 +97,7 @@ export default function DepartmentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Departments" description="Manage organization departments" action={<Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}><Plus className="mr-2 h-4 w-4" /> Add Department</Button>} />
+      <PageHeader title="Departments" description="Manage organization departments" action={canManageMasterData ? <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}><Plus className="mr-2 h-4 w-4" /> Add Department</Button> : undefined} />
 
       <Card>
         <CardContent className="pt-6">
@@ -119,10 +117,12 @@ export default function DepartmentsPage() {
                       {dept._count?.children != null && dept._count.children > 0 && <span>Sub-depts: {dept._count.children}</span>}
                     </div>
                   </div>
+                  {(canManageMasterData || canDeleteMasterData) && (
                   <div className="flex space-x-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(dept)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(dept); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>
+                    {canManageMasterData && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(dept)}><Pencil className="h-4 w-4" /></Button>}
+                    {canDeleteMasterData && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(dept); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
+                  )}
                 </div>
               ))}
               {(!data?.data || data.data.length === 0) && (

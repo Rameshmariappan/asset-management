@@ -13,7 +13,6 @@ import { useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor } from '@
 import { Store, Mail, Phone, Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { usePermissions } from '@/lib/permissions'
-import { AccessDenied } from '@/components/access-denied'
 import { PageHeader } from '@/components/page-header'
 import { Pagination } from '@/components/pagination'
 import { EmptyState } from '@/components/empty-state'
@@ -70,9 +69,8 @@ export default function VendorsPage() {
   const createMutation = useCreateVendor()
   const updateMutation = useUpdateVendor()
   const deleteMutation = useDeleteVendor()
-  const { canManageMasterData } = usePermissions()
+  const { canManageMasterData, canDeleteMasterData } = usePermissions()
 
-  if (!canManageMasterData) return <AccessDenied />
 
   const handleCreate = async () => {
     try {
@@ -140,7 +138,7 @@ export default function VendorsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Vendors" description="Manage vendors and suppliers" action={<Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}><Plus className="mr-2 h-4 w-4" /> Add Vendor</Button>} />
+      <PageHeader title="Vendors" description="Manage vendors and suppliers" action={canManageMasterData ? <Button onClick={() => { setForm(initialForm); setSelected(null); setShowCreate(true) }}><Plus className="mr-2 h-4 w-4" /> Add Vendor</Button> : undefined} />
 
       <Card>
         <CardContent className="pt-6">
@@ -160,10 +158,12 @@ export default function VendorsPage() {
                       {vendor.phone && <div className="flex items-center"><Phone className="h-4 w-4 mr-1" />{vendor.phone}</div>}
                     </div>
                   </div>
+                  {(canManageMasterData || canDeleteMasterData) && (
                   <div className="flex space-x-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(vendor)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(vendor); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>
+                    {canManageMasterData && <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(vendor)}><Pencil className="h-4 w-4" /></Button>}
+                    {canDeleteMasterData && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setSelected(vendor); setShowDelete(true) }}><Trash2 className="h-4 w-4" /></Button>}
                   </div>
+                  )}
                 </div>
               ))}
               {(!data?.data || data.data.length === 0) && (
