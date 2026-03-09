@@ -4,12 +4,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useAsset, useAssetHistory, useGenerateBothTags } from '@/lib/api-hooks'
+import { useAsset, useAssetHistory, useGenerateBothTags, useUploadAssetImages, useDeleteAssetImage } from '@/lib/api-hooks'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
-import { QrCode, Loader2 } from 'lucide-react'
+import { QrCode, Loader2, Upload, X, ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/page-header'
 import { usePermissions } from '@/lib/permissions'
+import { useRef } from 'react'
 
 export default function AssetDetailPage() {
   const params = useParams()
@@ -19,7 +20,31 @@ export default function AssetDetailPage() {
   const { data: asset, isLoading } = useAsset(id)
   const { data: history } = useAssetHistory(id)
   const generateTags = useGenerateBothTags()
-  const { canManageTags } = usePermissions()
+  const uploadImages = useUploadAssetImages()
+  const deleteImage = useDeleteAssetImage()
+  const { canManageTags, canManageAssets } = usePermissions()
+  const imageInputRef = useRef<HTMLInputElement>(null)
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    try {
+      await uploadImages.mutateAsync({ id, files })
+      toast.success(`${files.length} image(s) uploaded successfully`)
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to upload images')
+    }
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
+  const handleDeleteImage = async (imageUrl: string) => {
+    try {
+      await deleteImage.mutateAsync({ id, imageUrl })
+      toast.success('Image deleted')
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete image')
+    }
+  }
 
   const getStatusBadgeVariant = (status: string) => {
     const variants: Record<string, any> = {
@@ -153,6 +178,69 @@ export default function AssetDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Asset Images */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" />
+              Asset Images
+            </CardTitle>
+            {canManageAssets && (
+              <>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/gif,image/webp"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={uploadImages.isPending}
+                >
+                  {uploadImages.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Upload Images
+                </Button>
+              </>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {asset.imageUrls && (asset.imageUrls as string[]).length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {(asset.imageUrls as string[]).map((url: string, index: number) => (
+                <div key={index} className="relative group rounded-lg overflow-hidden border">
+                  <img
+                    src={url}
+                    alt={`Asset image ${index + 1}`}
+                    className="w-full h-40 object-cover"
+                  />
+                  {canManageAssets && (
+                    <button
+                      onClick={() => handleDeleteImage(url)}
+                      className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={deleteImage.isPending}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4 text-center">No images uploaded</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* History */}
       <Card>

@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CreateAssetDto } from './dto/create-asset.dto';
 import { UpdateAssetDto } from './dto/update-asset.dto';
 import { QueryAssetDto } from './dto/query-asset.dto';
@@ -12,7 +13,10 @@ import { AssetStatus } from '@prisma/client';
 
 @Injectable()
 export class AssetsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private storage: StorageService,
+  ) {}
 
   /**
    * Create a new asset
@@ -481,6 +485,58 @@ export class AssetsService {
         vendor: true,
         location: true,
       },
+    });
+  }
+
+  /**
+   * Upload images for an asset
+   */
+  async uploadImages(id: string, files: Express.Multer.File[]) {
+    const asset = await this.prisma.asset.findUnique({ where: { id } });
+    if (!asset || asset.deletedAt) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const existingUrls: string[] = (asset.imageUrls as string[]) || [];
+
+    const uploadedUrls = await Promise.all(
+      files.map((file) =>
+        this.storage.upload(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+          `asset-images/${asset.tenantId}/${id}`,
+        ),
+      ),
+    );
+
+    const updatedUrls = [...existingUrls, ...uploadedUrls];
+
+    return this.prisma.asset.update({
+      where: { id },
+      data: { imageUrls: updatedUrls },
+      include: { category: true, vendor: true, location: true },
+    });
+  }
+
+  /**
+   * Delete a specific image from an asset
+   */
+  async deleteImage(id: string, imageUrl: string) {
+    const asset = await this.prisma.asset.findUnique({ where: { id } });
+    if (!asset || asset.deletedAt) {
+      throw new NotFoundException('Asset not found');
+    }
+
+    const existingUrls: string[] = (asset.imageUrls as string[]) || [];
+    const updatedUrls = existingUrls.filter((url) => url !== imageUrl);
+
+    await this.storage.delete(imageUrl);
+
+    return this.prisma.asset.update({
+      where: { id },
+      data: { imageUrls: updatedUrls },
+      include: { category: true, vendor: true, location: true },
     });
   }
 }

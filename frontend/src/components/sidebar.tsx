@@ -46,7 +46,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { canViewUserList, canManageTags, canViewReports, canViewTransfers, isPlatformAdmin } = usePermissions()
 
   const orgName = user?.organization?.name || 'Asset Manager'
-  const orgLogoUrl = user?.organization?.logoUrl ? `${API_BASE}${user.organization.logoUrl}` : null
+  const orgLogoUrl = user?.organization?.logoUrl
+    ? user.organization.logoUrl.startsWith('http')
+      ? user.organization.logoUrl
+      : `${API_BASE}${user.organization.logoUrl}`
+    : null
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, visible: true },

@@ -305,6 +305,40 @@ export function useDeleteAsset() {
   })
 }
 
+export function useUploadAssetImages() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, files }: { id: string; files: File[] }) => {
+      const formData = new FormData()
+      files.forEach((file) => formData.append('files', file))
+      const response = await apiClient.post(`/assets/${id}/images`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] })
+    },
+  })
+}
+
+export function useDeleteAssetImage() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, imageUrl }: { id: string; imageUrl: string }) => {
+      const response = await apiClient.delete(`/assets/${id}/images`, {
+        data: { imageUrl },
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assets'] })
+    },
+  })
+}
+
 export function useCreateAssignment() {
   const queryClient = useQueryClient()
 

@@ -10,16 +10,15 @@ import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { createHash, randomBytes } from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
-import * as fs from 'fs';
-import * as path from 'path';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class OrganizationsService {
   constructor(
     private prisma: PrismaService,
     private tenantContext: TenantContextService,
+    private storage: StorageService,
   ) {}
 
   /**
@@ -46,7 +45,7 @@ export class OrganizationsService {
   }
 
   /**
-   * Upload organization logo
+   * Upload organization logo to R2
    */
   async updateLogo(file: Express.Multer.File) {
     const tenantId = this.tenantContext.getTenantId();
@@ -55,30 +54,23 @@ export class OrganizationsService {
       where: { id: tenantId },
     });
 
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    if (!allowedExtensions.includes(ext)) {
-      throw new BadRequestException(`Invalid file type. Allowed: ${allowedExtensions.join(', ')}`);
+    const allowedMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    if (!allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(`Invalid file type. Allowed: PNG, JPG, GIF, WebP`);
     }
 
-    const filename = `${uuidv4()}${ext}`;
-    const uploadDir = path.resolve(__dirname, '..', '..', '..', 'uploads', 'logos');
+    // Upload to R2 (compressed to 256x256 WebP)
+    const logoUrl = await this.storage.upload(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      `org-logos/${tenantId}`,
+      'logo',
+    );
 
-    await fs.promises.mkdir(uploadDir, { recursive: true });
-
-    const filePath = path.join(uploadDir, filename);
-    await fs.promises.writeFile(filePath, file.buffer);
-
-    const logoUrl = `/uploads/logos/${filename}`;
-
-    // Clean up old logo file
+    // Clean up old logo from R2
     if (currentOrg?.logoUrl) {
-      try {
-        const oldFilePath = path.resolve(uploadDir, path.basename(currentOrg.logoUrl));
-        await fs.promises.unlink(oldFilePath);
-      } catch {
-        // Ignore cleanup errors
-      }
+      await this.storage.delete(currentOrg.logoUrl);
     }
 
     return this.prisma.organization.update({
@@ -88,7 +80,7 @@ export class OrganizationsService {
   }
 
   /**
-   * Remove organization logo
+   * Remove organization logo from R2
    */
   async deleteLogo() {
     const tenantId = this.tenantContext.getTenantId();
@@ -97,13 +89,7 @@ export class OrganizationsService {
     });
 
     if (org?.logoUrl) {
-      try {
-        const uploadDir = path.resolve(__dirname, '..', '..', '..', 'uploads', 'logos');
-        const filePath = path.resolve(uploadDir, path.basename(org.logoUrl));
-        await fs.promises.unlink(filePath);
-      } catch {
-        // Ignore cleanup errors
-      }
+      await this.storage.delete(org.logoUrl);
     }
 
     return this.prisma.organization.update({

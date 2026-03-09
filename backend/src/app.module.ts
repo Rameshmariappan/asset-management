@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { ClsModule } from 'nestjs-cls';
-import { join } from 'path';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { CommonModule } from './common/common.module';
 import { TenantInterceptor } from './common/tenant.interceptor';
@@ -25,6 +23,7 @@ import { TagsModule } from './tags/tags.module';
 import { ReportsModule } from './reports/reports.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PlatformModule } from './platform/platform.module';
+import { StorageModule } from './storage/storage.module';
 import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
 
 @Module({
@@ -41,15 +40,8 @@ import { AuditLogInterceptor } from './audit-logs/audit-log.interceptor';
       middleware: { mount: true },
     }),
 
-    // Static file serving (uploaded logos etc.)
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'uploads'),
-      serveRoot: '/uploads',
-      serveStaticOptions: {
-        index: false,
-        fallthrough: false,
-      },
-    }),
+    // Cloud storage (Cloudflare R2)
+    StorageModule,
 
     // Rate Limiting
     ThrottlerModule.forRoot([

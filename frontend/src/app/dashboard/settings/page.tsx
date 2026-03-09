@@ -28,7 +28,11 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState(user?.organization?.name || '')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const logoUrl = user?.organization?.logoUrl ? `${API_BASE}${user?.organization?.logoUrl}` : null
+  const logoUrl = user?.organization?.logoUrl
+    ? user.organization.logoUrl.startsWith('http')
+      ? user.organization.logoUrl
+      : `${API_BASE}${user.organization.logoUrl}`
+    : null
 
   const getInitials = (name: string) => {
     const words = name.trim().split(/\s+/)
