@@ -49,3 +49,9 @@ Returns counts of:
 - `activeAssignments` — currently active
 - `returnedAssignments` — total minus active
 - `overdueAssignments` — active with expectedReturnDate < now
+
+## Multi-Tenancy
+- AssetAssignment model has `tenantId` FK → Organization
+- All queries auto-filtered by tenantId via Prisma middleware (TenantContextService)
+- List/statistics endpoints require: SUPER_ADMIN, ASSET_MANAGER, DEPT_HEAD, or AUDITOR
+- Return endpoint uses PATCH (not POST): `PATCH /assignments/:id/return`

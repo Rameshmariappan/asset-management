@@ -7,6 +7,7 @@ Browser (Next.js SPA)
   │
   ├─ Axios (apiClient) ─── Bearer token in header
   │                         refresh_token in httpOnly cookie
+  │                         X-Org-Id header (platform admin org switching)
   │
   ▼
 NestJS API (port 3001, /v1)
@@ -16,11 +17,17 @@ NestJS API (port 3001, /v1)
   ├─ ValidationPipe (global, whitelist + transform)
   ├─ JwtAuthGuard (global via APP_GUARD pattern per-controller)
   ├─ RolesGuard (RBAC enforcement)
+  ├─ PlatformAdminGuard (cross-tenant admin enforcement)
+  ├─ TenantInterceptor (global APP_INTERCEPTOR, extracts tenantId from JWT + X-Org-Id)
   ├─ AuditLogInterceptor (global APP_INTERCEPTOR, fire-and-forget)
   │
   ▼
 Prisma ORM ──► PostgreSQL 15 (Docker, port 5432)
-                  └── 17 models, 4 enums
+  │               └── 19 models, 4 enums
+  │               └── Prisma middleware auto-filters by tenantId
+  │
+  ▼
+TenantContextService (nestjs-cls) ── request-scoped tenant context
 
 Redis 7 (Docker, port 6379) ── declared but unused currently
 ```
@@ -29,30 +36,46 @@ Redis 7 (Docker, port 6379) ── declared but unused currently
 
 ### Module Pattern
 Every feature follows: `module.ts` + `controller.ts` + `service.ts` + `dto/*.dto.ts`
-- Controllers handle HTTP routing, decorators (@Roles, @Public, @ApiTags), and request/response
+- Controllers handle HTTP routing, decorators (@Roles, @Public, @PlatformAdmin, @ApiTags), and request/response
 - Services contain business logic and Prisma queries
 - DTOs use `class-validator` decorators for request validation
 - All modules import `PrismaModule` for database access
 
 ### Authentication & Authorization
 - **Passport.js** with two strategies:
-  - `jwt` — extracts Bearer token from Authorization header, validates user active, returns `{userId, email, roles}`
+  - `jwt` — extracts Bearer token from Authorization header, validates user active, returns `{userId, email, roles, tenantId, isPlatformAdmin}`
   - `jwt-refresh` — extracts refresh_token from httpOnly cookie, returns `{userId, email, refreshToken}`
 - **JwtAuthGuard** — extends Passport AuthGuard('jwt'), respects `@Public()` decorator to skip auth
-- **RolesGuard** — reads `@Roles()` metadata, checks if user has any of the required roles
+- **RolesGuard** — reads `@Roles()` metadata, checks if user has any of the required roles. Bypasses for `isPlatformAdmin`
+- **PlatformAdminGuard** — ensures `user.isPlatformAdmin === true` for cross-tenant operations
 - **Decorators:**
   - `@Public()` — marks route as unauthenticated (sets `isPublic` metadata)
   - `@Roles(...roles)` — declares required roles (checked by RolesGuard)
-  - `@CurrentUser(field?)` — extracts JWT payload from request (userId, email, roles, refreshToken)
+  - `@CurrentUser(field?)` — extracts JWT payload from request: `{userId, email, roles, tenantId, isPlatformAdmin, refreshToken?}`
+  - `@PlatformAdmin()` — marks route as platform admin only
+  - `@SkipAuditLog()` — skips audit logging on specific routes
 - **MFA**: TOTP via `speakeasy`, QR code generation, backup codes (bcrypt-hashed)
 - **Password Reset**: Random token → SHA256 hash stored → 1-hour expiry → transactional reset
+
+### Multi-Tenancy
+- **Organization model**: name, slug (unique), logoUrl, isActive — created during user registration
+- **TenantContextService** (`nestjs-cls`): stores tenantId and isPlatformAdmin per request via CLS (continuation-local storage)
+- **TenantInterceptor** (global APP_INTERCEPTOR):
+  - Extracts `tenantId` from JWT payload
+  - Platform admins can override via `X-Org-Id` header
+  - Sets context in TenantContextService
+- **Prisma Middleware**: auto-injects `tenantId` filter into all queries for 10 tenant-scoped models:
+  - User, Department, Category, Vendor, Location, Asset, AssetAssignment, AssetTransfer, AuditLog, Notification
+  - Converts `findUnique` → `findFirst` for compound tenant filtering
+- **Platform Admin**: `isPlatformAdmin` flag on User model — can view/manage all organizations
 
 ### Global Middleware Stack (applied in main.ts)
 1. `helmet()` — security headers
 2. CORS — origin whitelist (FRONTEND_URL + localhost in dev), credentials: true
 3. Global prefix: `/v1`
 4. `ValidationPipe` — whitelist, forbidNonWhitelisted, transform with implicit conversion
-5. `AuditLogInterceptor` — registered as APP_INTERCEPTOR in AppModule
+5. `TenantInterceptor` — registered as APP_INTERCEPTOR in AppModule
+6. `AuditLogInterceptor` — registered as APP_INTERCEPTOR in AppModule
 
 ### AuditLogInterceptor Details
 - Intercepts POST, PUT, PATCH, DELETE requests only
@@ -64,10 +87,11 @@ Every feature follows: `module.ts` + `controller.ts` + `service.ts` + `dto/*.dto
 
 ### Database Layer
 - **Prisma 5** ORM with PostgreSQL provider
-- 17 models across 5 groups (Auth, Org, Assets, Assignments/Transfers, Audit/Notifications)
+- 19 models across 5 groups (Auth, Org, Assets, Assignments/Transfers, Audit/Notifications)
 - Soft delete on User and Asset (filter `deletedAt: null` in all queries)
 - All IDs are UUIDs (`@db.Uuid`)
 - Column mapping: camelCase in code → snake_case in DB via `@map()`
+- Multi-tenancy: Prisma middleware auto-filters by tenantId on all tenant-scoped models
 - See [database.md](database.md) for full schema
 
 ### Report Generation
@@ -98,30 +122,52 @@ src/
 ├── app/
 │   ├── layout.tsx          ← Root layout with Providers wrapper
 │   ├── page.tsx            ← Redirects to /dashboard
-│   ├── auth/               ← Login, forgot-password, reset-password
+│   ├── auth/
+│   │   ├── login/          ← Email/password + optional MFA
+│   │   ├── register/       ← Self-registration (creates org + admin)
+│   │   ├── forgot-password/
+│   │   ├── reset-password/
+│   │   └── accept-invitation/ ← Token-based org invitation acceptance
 │   └── dashboard/
 │       ├── layout.tsx      ← Protected route + sidebar layout
-│       ├── page.tsx        ← Dashboard overview
+│       ├── page.tsx        ← Dashboard overview (stats, charts, activity)
 │       ├── assets/         ← Asset CRUD + [id] detail
 │       ├── assignments/    ← Assignment management
 │       ├── transfers/      ← Transfer workflow
-│       └── ...             ← categories, vendors, locations, departments, users, settings, notifications
+│       ├── tags/           ← QR/barcode tag display
+│       ├── notifications/  ← Notification center
+│       ├── settings/       ← Profile, password, org branding
+│       │   └── invitations/ ← Manage org invitations (admin)
+│       └── ...             ← categories, vendors, locations, departments, users
 ├── components/
-│   ├── sidebar.tsx         ← Navigation (13 items + logout)
-│   ├── providers.tsx       ← QueryClient + AuthProvider wrapper
-│   └── ui/                 ← shadcn/ui components (dialog, select, tabs, textarea, etc.)
+│   ├── sidebar.tsx         ← Navigation (13 items + logout, role-based visibility)
+│   ├── providers.tsx       ← QueryClient + AuthProvider + ThemeProvider wrapper
+│   ├── page-header.tsx     ← Reusable page header with title, description, actions
+│   ├── data-table.tsx      ← Generic table with skeleton loading, empty state, pagination
+│   ├── pagination.tsx      ← Table pagination controls
+│   ├── stat-card.tsx       ← Stats display (icon + value + title)
+│   ├── empty-state.tsx     ← Empty data illustration
+│   ├── access-denied.tsx   ← 403 permission denied page
+│   ├── org-switcher.tsx    ← Organization switcher for platform admins
+│   ├── confirm-dialog.tsx  ← Generic confirmation modal
+│   ├── theme-provider.tsx  ← Next Themes wrapper
+│   ├── theme-toggle.tsx    ← Light/dark mode switcher
+│   ├── themed-toaster.tsx  ← Sonner toast with theme support
+│   └── ui/                 ← shadcn/ui components (dialog, select, tabs, textarea, badge, button, card, input, label, etc.)
 └── lib/
-    ├── api-client.ts       ← Axios singleton with token refresh
-    ├── api-hooks.ts        ← ~40 TanStack Query hooks
-    ├── auth-context.tsx    ← React Context for auth state
+    ├── api-client.ts       ← Axios singleton with token refresh + X-Org-Id header
+    ├── api-hooks.ts        ← ~45+ TanStack Query hooks
+    ├── auth-context.tsx    ← React Context for auth state (login/logout/register/refreshUser/updateOrganizationData)
+    ├── permissions.ts      ← usePermissions() hook with 15+ role-based permission flags
     ├── utils.ts            ← cn(), formatDate(), formatCurrency(), formatDateTime()
-    └── password-validation.ts
+    └── password-validation.ts ← Password strength checker and requirements
 ```
 
 ### State Management
 - **Server state**: TanStack React Query 5 (staleTime: 30s-60s, retry: 2, auto-invalidation on mutations)
-- **Auth state**: React Context (`AuthProvider`) with login/logout/register/refreshUser
+- **Auth state**: React Context (`AuthProvider`) with login/logout/register/refreshUser/updateOrganizationData
 - **UI state**: React useState for dialogs, forms, filters, pagination
+- **Org switching**: sessionStorage for platform admin org selection
 
 ### Token Refresh Mechanism (`api-client.ts`)
 The `ApiClient` class implements a dual-queue pattern:
@@ -131,6 +177,14 @@ The `ApiClient` class implements a dual-queue pattern:
 4. On success: update cookie, resolve all queued requests, retry original
 5. On failure: reject all queued, clear cookie, redirect to `/auth/login`
 6. `_retry` flag prevents infinite loops
+7. Platform admin: attaches `X-Org-Id` header from sessionStorage for org switching
+
+### Frontend RBAC (`permissions.ts`)
+The `usePermissions()` hook provides 15+ boolean permission flags based on user roles:
+- `canManageAssets`, `canCreateAssignment`, `canApproveTransferAsManager`, `canApproveTransferAsAdmin`
+- `canManageMasterData`, `canManageUsers`, `canViewAuditLogs`, `canViewReports`
+- `canSwitchOrgs` (platform admin only)
+- Used in sidebar navigation, page components, and action buttons for role-based visibility
 
 ### UI Framework
 - **shadcn/ui**: Radix UI primitives + Tailwind CSS styling
@@ -139,9 +193,10 @@ The `ApiClient` class implements a dual-queue pattern:
 - Sonner for toast notifications
 - Recharts for dashboard charts
 - Lucide React for icons
+- Dark mode support via next-themes (class-based)
 
 ### Form Handling Pattern
-1. State object via useState (most pages) or React Hook Form (login)
+1. State object via useState (most pages) or React Hook Form (login/register)
 2. Mutation hook: `useCreate<Entity>()`, `useUpdate<Entity>()`, etc.
 3. Submit: validate → `mutateAsync(data)` → `toast.success()` → close dialog → reset form
 4. Error: `toast.error(error.response?.data?.message || fallback)`
@@ -151,3 +206,4 @@ The `ApiClient` class implements a dual-queue pattern:
 - `dashboard/layout.tsx` checks `user` from AuthContext
 - If `!user && !loading` → redirect to `/auth/login`
 - Shows loading spinner during auth check
+- Role-based component visibility via `usePermissions()` hook

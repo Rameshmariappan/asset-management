@@ -2,31 +2,43 @@
 
 ## API Communication
 ```
-Frontend (apiClient)  →  HTTP request with Bearer token
+Frontend (apiClient)  →  HTTP request with Bearer token + X-Org-Id (platform admin)
                       →  NestJS Controller (validates auth + roles)
+                      →  TenantInterceptor (sets tenant context from JWT/header)
                       →  Service (business logic)
-                      →  Prisma (SQL query)
+                      →  Prisma (SQL query + auto tenant filter via middleware)
                       →  PostgreSQL
                       ←  Response JSON
                       ←  TanStack Query caches result
 ```
 
-All requests go through the Axios interceptor which attaches the access token from cookies.
+All requests go through the Axios interceptor which attaches the access token from cookies and X-Org-Id header (for platform admins).
 
 ---
 
 ## Authentication Flow
 
+### Registration
+1. `POST /v1/auth/register` with `{email, password, firstName, lastName, organizationName}`
+2. Backend transaction:
+   1. Generate slug from organizationName (lowercase, hyphenated, unique)
+   2. Create Organization record
+   3. Create User with `tenantId` = new org ID
+   4. Find SUPER_ADMIN role → create UserRole assignment
+3. Return `{organization, user}` (password excluded)
+4. Frontend: redirects to login page
+
 ### Login
 1. `POST /v1/auth/login` with `{email, password, mfaCode?}`
-2. Backend: find user (exclude soft-deleted) → bcrypt.compare password → check isActive
+2. Backend: find user (exclude soft-deleted) → bcrypt.compare password → check isActive → check org.isActive
 3. If MFA enabled and no code: return `{requiresMfa: true}` (frontend shows MFA input)
 4. If MFA enabled with code: `speakeasy.totp.verify()` with window=2
 5. Generate JWT access token (15min) + refresh token (7d, JWT signed)
-6. Store refresh token hash (SHA256) in `refresh_tokens` table
-7. Set `refresh_token` as httpOnly, secure (prod), sameSite=strict cookie
-8. Return `{accessToken, user: {id, email, firstName, lastName, roles, isMfaEnabled}}`
-9. Frontend: stores accessToken in JS cookie (15min expiry), sets user in AuthContext
+6. JWT payload: `{sub: userId, email, roles, tenantId, isPlatformAdmin}`
+7. Store refresh token hash (SHA256) in `refresh_tokens` table
+8. Set `refresh_token` as httpOnly, secure (prod), sameSite=strict cookie
+9. Return `{accessToken, user: {id, email, firstName, lastName, roles, isMfaEnabled, tenantId, isPlatformAdmin, organization}}`
+10. Frontend: stores accessToken in JS cookie (15min expiry), sets user in AuthContext
 
 ### Token Refresh (on 401)
 1. Axios interceptor catches 401 on any request
@@ -40,6 +52,46 @@ All requests go through the Axios interceptor which attaches the access token fr
 ### Logout
 1. `POST /v1/auth/logout` — backend revokes refresh token, clears cookie
 2. Frontend: removes accessToken cookie, clears user state, redirects to login
+
+### Invitation Flow
+1. Admin calls `POST /v1/organizations/invitations` with `{email, roleName}`
+2. Backend: creates OrgInvitation with random token, tenantId from current user, expiresAt (48h)
+3. Frontend: copies invitation link to clipboard (contains token)
+4. New user visits `/auth/accept-invitation?token=...`
+5. `POST /v1/auth/accept-invitation` with `{token, password, firstName, lastName}`
+6. Backend transaction:
+   1. Validate token (not expired, not already accepted)
+   2. Create User with tenantId from invitation
+   3. Find role by roleName → create UserRole assignment
+   4. Mark invitation as accepted (set acceptedAt)
+7. Frontend: redirects to login page
+
+---
+
+## Multi-Tenancy Flow
+
+### Tenant Context (per-request)
+```
+HTTP Request
+  │
+  TenantInterceptor (global)
+  ├─ Extract tenantId from JWT payload
+  ├─ If isPlatformAdmin AND X-Org-Id header present → override tenantId
+  ├─ Set tenantId in TenantContextService (CLS-based)
+  └─ Set isPlatformAdmin flag in context
+
+  Service layer (business logic)
+  │
+  Prisma Middleware (automatic)
+  ├─ Before every query on tenant-scoped models:
+  │   ├─ findMany/findFirst/count/aggregate → inject WHERE tenantId = ctx.tenantId
+  │   ├─ findUnique → convert to findFirst with tenantId filter
+  │   ├─ create → inject tenantId into data
+  │   ├─ update/delete → inject tenantId into WHERE clause
+  │   └─ Skip filtering if isPlatformAdmin (for cross-tenant queries)
+  └─ Tenant-scoped models: User, Department, Category, Vendor, Location, Asset,
+     AssetAssignment, AssetTransfer, AuditLog, Notification
+```
 
 ---
 
@@ -55,7 +107,7 @@ Create (POST /assets)
 
 Status Transitions:
   available ──(assign)──► assigned ──(return Good/Fair/Excellent)──► available
-                                    ──(return Damaged/Poor)──► damaged
+                                   ──(return Damaged/Poor)──► damaged
   available ──(manual)──► maintenance ──(manual)──► available
   any ──(soft delete)──► retired (sets deletedAt + status=retired)
 
@@ -121,7 +173,7 @@ Any POST/PATCH/DELETE request
   ├─ Extract: userId from JWT, entityId from params or response, IP, user-agent
   ├─ Sanitize response data (remove passwords, tokens, secrets)
   └─ Fire-and-forget: auditLogsService.create() — does not block response
-      └─ Stored in audit_logs table with JSONB changes field
+      └─ Stored in audit_logs table with JSONB changes field + tenantId
 ```
 
 ---
@@ -129,7 +181,7 @@ Any POST/PATCH/DELETE request
 ## Notification Flow
 ```
 NotificationsService.create(dto)
-  ├─ Save to notifications table (always)
+  ├─ Save to notifications table (always, with tenantId)
   ├─ If channel=email: sendEmail() via Resend (currently stubbed — logs only)
   ├─ If channel=slack: sendSlack() via webhook (currently stubbed — logs only)
   └─ Update sentAt timestamp
@@ -145,6 +197,7 @@ Helper methods exist but are NOT auto-called:
 ## Frontend Data Fetching Pattern
 ```
 Page Component
+  ├─ usePermissions() ← check role-based access
   ├─ useEntities({ page, search, ...filters })  ← TanStack useQuery
   │   └─ apiClient.get('/entities', { params })
   │

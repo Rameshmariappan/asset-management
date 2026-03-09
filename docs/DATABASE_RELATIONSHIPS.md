@@ -5,8 +5,9 @@
 1. [Relationship Types Overview](#relationship-types-overview)
 2. [One-to-Many Relationships](#one-to-many-relationships)
 3. [Many-to-Many Relationships](#many-to-many-relationships)
-4. [Practical Examples with Real Data](#practical-examples-with-real-data)
-5. [How to Query Related Data](#how-to-query-related-data)
+4. [Multi-Tenancy Relationships](#multi-tenancy-relationships)
+5. [Practical Examples with Real Data](#practical-examples-with-real-data)
+6. [How to Query Related Data](#how-to-query-related-data)
 
 ---
 
@@ -51,9 +52,65 @@ CREATE TABLE users (
 
 ---
 
-### 1:N Examples in Your System
+### 1:N Examples in Your System (19 Models Total)
 
-#### Example 1: Department → Users (1:N)
+#### Example 1: Organization → Users (1:N) — Multi-Tenancy
+
+**Scenario**: One organization has many users, but each user belongs to only one organization (tenant).
+
+```
+ORGANIZATIONS TABLE:
+┌──────────┬─────────────────┬──────────────┬──────────┐
+│ id       │ name            │ slug         │ isActive │
+├──────────┼─────────────────┼──────────────┼──────────┤
+│ org-001  │ TechCorp Inc.   │ techcorp-inc │ true     │
+│ org-002  │ CloudHost Ltd.  │ cloudhost-ltd│ true     │
+└──────────┴─────────────────┴──────────────┴──────────┘
+
+USERS TABLE:
+┌──────────┬────────────┬───────────────┬──────────────┬─────────────────┐
+│ id       │ first_name │ last_name     │ tenant_id    │ isPlatformAdmin │
+├──────────┼────────────┼───────────────┼──────────────┼─────────────────┤
+│ user-001 │ John       │ Doe           │ org-001      │ false           │
+│ user-002 │ Jane       │ Smith         │ org-001      │ false           │
+│ user-003 │ Bob        │ Johnson       │ org-002      │ false           │
+│ user-004 │ Platform   │ Admin         │ org-001      │ true            │
+└──────────┴────────────┴───────────────┴──────────────┴─────────────────┘
+```
+
+**Analysis**:
+- TechCorp has **3 users** (John, Jane, Platform Admin)
+- CloudHost has **1 user** (Bob)
+- Each user belongs to **exactly ONE organization**
+- `isPlatformAdmin` is a boolean flag (not a role) — allows cross-tenant access
+- Platform Admin can switch to any org via `X-Org-Id` header
+
+**In Prisma Schema**:
+```prisma
+model Organization {
+  id        String @id
+  name      String
+  slug      String @unique
+  logoUrl   String?
+  isActive  Boolean @default(true)
+  users     User[]          // One org has MANY users
+  assets    Asset[]         // One org has MANY assets
+  // ... all tenant-scoped models
+}
+
+model User {
+  id              String        @id
+  tenantId        String?
+  isPlatformAdmin Boolean       @default(false)
+  organization    Organization? @relation(fields: [tenantId], references: [id])
+}
+```
+
+**Important**: The `tenantId` field exists on 10+ models (Users, Assets, Assignments, Transfers, etc.) and is automatically filtered by Prisma middleware — queries only return data belonging to the current user's organization.
+
+---
+
+#### Example 2: Department → Users (1:N)
 
 **Scenario**: One department has many employees, but each employee belongs to only one department.
 
@@ -112,7 +169,7 @@ model User {
 
 ---
 
-#### Example 2: Category → Assets (1:N)
+#### Example 3: Category → Assets (1:N)
 
 **Scenario**: One category (e.g., "Laptops") can have many assets, but each asset belongs to only one category.
 
@@ -155,7 +212,7 @@ When a laptop is created with category "Laptops" (20% depreciation, 5-year life)
 
 ---
 
-#### Example 3: Vendor → Assets (1:N)
+#### Example 4: Vendor → Assets (1:N)
 
 ```
 VENDORS:
@@ -182,7 +239,7 @@ ASSETS:
 
 ---
 
-#### Example 4: Location → Assets (1:N)
+#### Example 5: Location → Assets (1:N)
 
 ```
 LOCATIONS:
@@ -211,7 +268,7 @@ ASSETS:
 
 ---
 
-#### Example 5: Asset → Assignments (1:N)
+#### Example 6: Asset → Assignments (1:N)
 
 **Scenario**: One asset can have many assignments over its lifetime (different users over time), but each assignment is for only one asset.
 
@@ -246,7 +303,7 @@ Jan 2024 ────────► Jun 2024 ────────► Dec 20
 
 ---
 
-#### Example 6: User → Assignments (1:N)
+#### Example 7: User → Assignments (1:N)
 
 ```
 USERS:
@@ -273,16 +330,100 @@ ASSIGNMENTS (What John has been assigned):
 
 ### Summary of 1:N Relationships in Your System
 
-| Parent (One) | Child (Many) | Example                                   |
-| ------------ | ------------ | ----------------------------------------- |
-| Department   | Users        | IT Dept has 10 employees                  |
-| Category     | Assets       | Laptops category has 50 laptops           |
-| Vendor       | Assets       | Apple vendor supplied 30 devices          |
-| Location     | Assets       | Floor 3 has 25 assets                     |
-| Department   | Assets       | IT Dept owns 40 assets                    |
-| Asset        | Assignments  | One laptop assigned 5 times over its life |
-| User         | Assignments  | John has 2 current assignments            |
-| Asset        | Transfers    | One laptop transferred 3 times            |
+| Parent (One)   | Child (Many)    | Example                                    |
+| -------------- | --------------- | ------------------------------------------ |
+| Organization   | Users           | TechCorp org has 50 users                  |
+| Organization   | Assets          | TechCorp org has 200 assets                |
+| Organization   | OrgInvitations  | TechCorp has 5 pending invitations         |
+| Department     | Users           | IT Dept has 10 employees                   |
+| Category       | Assets          | Laptops category has 50 laptops            |
+| Vendor         | Assets          | Apple vendor supplied 30 devices           |
+| Location       | Assets          | Floor 3 has 25 assets                      |
+| Department     | Assets          | IT Dept owns 40 assets                     |
+| Asset          | Assignments     | One laptop assigned 5 times over its life  |
+| User           | Assignments     | John has 2 current assignments             |
+| Asset          | Transfers       | One laptop transferred 3 times             |
+
+---
+
+## Multi-Tenancy Relationships
+
+### How Multi-Tenancy Works
+
+The system uses **Organization-based multi-tenancy**. Each organization is a separate tenant, and data is isolated between tenants automatically.
+
+#### Key Concepts
+
+1. **Organization** = Tenant (each company using the system)
+2. **tenantId** = Foreign key on 10+ models pointing to `organizations.id`
+3. **Prisma Middleware** = Automatically adds `WHERE tenantId = ?` to all queries
+4. **isPlatformAdmin** = Boolean flag on User model (not a role) for cross-tenant access
+
+#### Organization → All Tenant-Scoped Models (1:N)
+
+```
+Organization (org-001: TechCorp)
+    │
+    ├──► Users (John, Jane, Alice — all tenantId = org-001)
+    ├──► Assets (MacBook, Dell XPS — all tenantId = org-001)
+    ├──► Departments (IT, HR — all tenantId = org-001)
+    ├──► Categories (Laptops, Servers — all tenantId = org-001)
+    ├──► Vendors (Apple, Dell — all tenantId = org-001)
+    ├──► Locations (Floor 3, Data Center — all tenantId = org-001)
+    ├──► Assignments (all tenantId = org-001)
+    ├──► Transfers (all tenantId = org-001)
+    ├──► Notifications (all tenantId = org-001)
+    ├──► AuditLogs (all tenantId = org-001)
+    └──► OrgInvitations (invite emails for org-001)
+```
+
+**Data Isolation Example**:
+```
+TechCorp (org-001) sees ONLY:
+  - 3 users, 50 assets, 2 departments
+
+CloudHost (org-002) sees ONLY:
+  - 5 users, 100 assets, 4 departments
+
+Neither can see the other's data — enforced at the database query level.
+```
+
+#### Organization → OrgInvitations (1:N)
+
+```
+ORGANIZATIONS:
+┌──────────┬─────────────────┐
+│ id       │ name            │
+├──────────┼─────────────────┤
+│ org-001  │ TechCorp Inc.   │
+└──────────┴─────────────────┘
+
+ORG_INVITATIONS:
+┌──────────┬──────────────────────┬──────────────┬───────────┬────────────┐
+│ id       │ email                │ org_id       │ role_name │ accepted_at│
+├──────────┼──────────────────────┼──────────────┼───────────┼────────────┤
+│ inv-001  │ alice@example.com    │ org-001      │ EMPLOYEE  │ 2024-06-15 │
+│ inv-002  │ bob@example.com      │ org-001      │ DEPT_HEAD │ NULL       │ ← Pending
+└──────────┴──────────────────────┴──────────────┴───────────┴────────────┘
+```
+
+**Flow**: Admin creates invitation → token emailed → user accepts → User created with assigned role in that org.
+
+#### Platform Admin (Cross-Tenant Access)
+
+```
+User "Platform Admin" (isPlatformAdmin: true)
+    │
+    ├── Can switch to org-001 (via X-Org-Id header)
+    ├── Can switch to org-002
+    └── Can switch to org-003
+
+    When switched to org-001:
+      → All queries return org-001 data
+      → Functions as if they belong to org-001
+```
+
+**Note**: `isPlatformAdmin` is a **boolean flag on the User model**, NOT a role in the `roles` table. It bypasses the RolesGuard entirely and allows accessing the Platform module endpoints.
 
 ---
 
@@ -787,19 +928,25 @@ const assetHistory = await prisma.asset.findUnique({
 
 ## Key Takeaways
 
-1. **1:N stores FK in child table** (users.department_id)
+1. **1:N stores FK in child table** (users.department_id, users.tenant_id)
 2. **N:M requires junction table** (user_roles with user_id + role_id)
-3. **Your system uses both**:
-   - 1:N for ownership (user belongs to department)
+3. **Multi-tenancy uses 1:N** — Organization → all tenant-scoped models via `tenantId` FK
+4. **Your system uses all three patterns**:
+   - 1:N for ownership (user belongs to department, user belongs to organization)
    - N:M for permissions (user has many roles, role has many permissions)
-4. **Junction tables are necessary** for N:M relationships
-5. **Querying is different**:
+   - Tenant isolation (Prisma middleware auto-filters by tenantId)
+5. **Junction tables are necessary** for N:M relationships
+6. **isPlatformAdmin is NOT a role** — it's a boolean flag on User for cross-tenant access
+7. **Querying is different**:
    - 1:N: Direct include
    - N:M: Include through junction table
+   - Tenant: Automatic filtering (no manual WHERE clause needed)
 
 This structure allows your system to:
 
+- ✅ Isolate data between organizations (multi-tenancy)
 - ✅ Track asset ownership and location
 - ✅ Implement flexible role-based access control
 - ✅ Maintain complete audit history
 - ✅ Support complex permission systems
+- ✅ Enable platform-level administration across tenants

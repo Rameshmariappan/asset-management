@@ -1,6 +1,6 @@
 # Frontend Libraries (`src/lib/`)
 
-Shared infrastructure for API communication, authentication, and utilities.
+Shared infrastructure for API communication, authentication, permissions, and utilities.
 
 ---
 
@@ -16,6 +16,7 @@ Singleton `ApiClient` class providing a configured Axios instance.
 **Request Interceptor:**
 - Reads `accessToken` from JS cookie
 - Attaches `Authorization: Bearer {token}` header
+- Platform admin: reads `selectedOrgId` from sessionStorage → attaches `X-Org-Id` header
 
 **Response Interceptor (401 Token Refresh):**
 - On 401, if not already refreshing:
@@ -31,7 +32,7 @@ Singleton `ApiClient` class providing a configured Axios instance.
 
 ## api-hooks.ts — TanStack Query Hooks
 
-~40 hooks covering all entities. Pattern:
+~45+ hooks covering all entities. Pattern:
 
 **Queries** (`useQuery`):
 - `useAssets(params)`, `useAsset(id)`, `useAssetStatistics()`, `useAssetHistory(id)`
@@ -41,6 +42,7 @@ Singleton `ApiClient` class providing a configured Axios instance.
 - `useNotifications(params)`, `useUnreadNotificationCount()`
 - `useAuditLogs(params)`
 - `useCategories()`, `useVendors()`, `useLocations()`, `useDepartments()`, `useRoles()`
+- `useOrganization()`, `useInvitations()`
 
 **Mutations** (`useMutation`):
 - CRUD: `useCreate<Entity>()`, `useUpdate<Entity>()`, `useDelete<Entity>()`
@@ -49,6 +51,8 @@ Singleton `ApiClient` class providing a configured Axios instance.
 - Notifications: `useMarkNotificationAsRead()`, `useMarkAllNotificationsAsRead()`
 - Tags: `useGenerateQRCode()`, `useGenerateBarcode()`, `useGenerateBothTags()`
 - Auth: `useForgotPassword()`, `useResetPassword()`, `useChangePassword()`, `useUpdateAssetStatus()`
+- Organization: `useUpdateOrganization()`, `useUploadOrganizationLogo()`, `useDeleteOrganizationLogo()`
+- Invitations: `useCreateInvitation()`, `useDeleteInvitation()`
 
 **Configuration:**
 - `staleTime`: 30s for assets/users/master data, 60s default
@@ -71,6 +75,7 @@ interface AuthContextType {
   register(data): Promise<void>;
   logout(): Promise<void>;
   refreshUser(): Promise<void>;
+  updateOrganizationData(data: {name?, logoUrl?}): void;
 }
 ```
 
@@ -81,17 +86,59 @@ interface AuthContextType {
   email: string;
   firstName: string;
   lastName: string;
-  roles: Array<{id, name, displayName, description}>;
+  roles: Array<{id, name, displayName, description}> | string[];
   department?: {id, name, code};
+  departmentId?: string;
   isMfaEnabled: boolean;
+  tenantId?: string;
+  isPlatformAdmin?: boolean;
+  organization?: {id, name, slug, logoUrl, isActive};
 }
 ```
 
 **Lifecycle:**
 1. On mount: `checkAuth()` calls `GET /auth/me` → sets user or clears state
 2. Login: `POST /auth/login` → stores accessToken cookie (15min) → sets user
-3. Logout: `POST /auth/logout` → removes cookie → clears user → redirects to `/auth/login`
-4. Handles both `response.data.user` and `response.data` formats for backward compatibility
+3. Register: `POST /auth/register` → redirects to login (no auto-login)
+4. Logout: `POST /auth/logout` → removes cookie → clears user → redirects to `/auth/login`
+5. Handles both `response.data.user` and `response.data` formats for backward compatibility
+6. `updateOrganizationData()`: locally patches user.organization without re-fetching
+
+---
+
+## permissions.ts — Role-Based Access Control
+
+`usePermissions()` hook providing boolean flags for UI-level RBAC.
+
+**Role Constants:**
+- `SUPER_ADMIN`, `ASSET_MANAGER`, `DEPT_HEAD`, `EMPLOYEE`, `AUDITOR`
+
+**Permission Flags (~15+):**
+```typescript
+{
+  isSuperAdmin: boolean;
+  isAssetManager: boolean;
+  isDeptHead: boolean;
+  isEmployee: boolean;
+  isAuditor: boolean;
+  canManageAssets: boolean;       // SUPER_ADMIN | ASSET_MANAGER
+  canCreateAssignment: boolean;   // SUPER_ADMIN | ASSET_MANAGER
+  canApproveTransferAsManager: boolean;  // SUPER_ADMIN | DEPT_HEAD
+  canApproveTransferAsAdmin: boolean;    // SUPER_ADMIN | ASSET_MANAGER
+  canManageMasterData: boolean;   // SUPER_ADMIN | ASSET_MANAGER
+  canManageUsers: boolean;        // SUPER_ADMIN | ASSET_MANAGER
+  canViewAuditLogs: boolean;      // SUPER_ADMIN | AUDITOR
+  canViewReports: boolean;        // SUPER_ADMIN | ASSET_MANAGER | AUDITOR
+  canSwitchOrgs: boolean;         // isPlatformAdmin only
+  // ... more flags
+}
+```
+
+**Usage pattern:**
+```typescript
+const { canManageAssets, canSwitchOrgs } = usePermissions();
+if (!canManageAssets) return <AccessDenied />;
+```
 
 ---
 

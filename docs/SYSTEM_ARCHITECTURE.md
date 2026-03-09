@@ -3,10 +3,11 @@
 ## Table of Contents
 
 1. [Entity Relationships](#entity-relationships)
-2. [Role-Based Access Control (RBAC)](#role-based-access-control)
-3. [Page Interconnections](#page-interconnections)
-4. [User Workflows](#user-workflows)
-5. [API Endpoint Structure](#api-endpoint-structure)
+2. [Multi-Tenancy Architecture](#multi-tenancy-architecture)
+3. [Role-Based Access Control (RBAC)](#role-based-access-control)
+4. [Page Interconnections](#page-interconnections)
+5. [User Workflows](#user-workflows)
+6. [API Endpoint Structure](#api-endpoint-structure)
 
 ---
 
@@ -15,45 +16,40 @@
 ### Core Entity Diagram
 
 ```
-┌─────────────┐
-│   USERS     │◄──────────┐
-└─────┬───────┘           │
-      │ belongs to        │ has many
-      ▼                   │
-┌─────────────┐     ┌─────┴──────┐
-│ DEPARTMENTS │     │ USER_ROLES │
-└─────┬───────┘     └─────┬──────┘
-      │                   │
-      │ has many          │ references
-      ▼                   ▼
-┌─────────────┐     ┌──────────┐
-│   USERS     │     │  ROLES   │
-│  (employees)│     └─────┬────┘
-└─────────────┘           │
-                          │ has many
-                          ▼
-                    ┌────────────────┐
-                    │ ROLE_PERMISSIONS│
-                    └────────┬────────┘
-                            │ references
-                            ▼
-                    ┌──────────────┐
-                    │ PERMISSIONS  │
-                    └──────────────┘
+┌───────────────────┐
+│   ORGANIZATIONS   │ ◄──── Multi-Tenancy Root
+└────────┬──────────┘
+         │ has many (tenantId FK on all below)
+         │
+    ┌────┼────────────────────────────────────────┐
+    │    │                                        │
+    ▼    ▼                                        ▼
+┌────────────┐  ┌───────────────┐         ┌──────────────┐
+│   USERS    │  │ ORG_INVITATIONS│         │    ASSETS    │
+└──┬────┬────┘  └───────────────┘         └──┬───────────┘
+   │    │                                    │ belongs to
+   │    │ belongs to                         ├──► CATEGORIES
+   │    ▼                                    ├──► VENDORS
+   │ ┌─────────────┐                         ├──► LOCATIONS
+   │ │ DEPARTMENTS │                         └──► DEPARTMENTS
+   │ └─────────────┘
+   │                                         │ has many
+   │ has many                                ├──► ASSET_ASSIGNMENTS
+   ▼                                         ├──► ASSET_TRANSFERS
+┌─────────────┐                              └──► AUDIT_LOGS
+│ USER_ROLES  │
+└──────┬──────┘
+       │ references
+       ▼
+┌──────────┐     ┌────────────────┐     ┌──────────────┐
+│  ROLES   │────►│ ROLE_PERMISSIONS│────►│ PERMISSIONS  │
+└──────────┘     └────────────────┘     └──────────────┘
 
-┌──────────┐
-│  ASSETS  │
-└────┬─────┘
-     │ belongs to
-     ├──────► CATEGORIES (depreciation rules)
-     ├──────► VENDORS (supplier info)
-     ├──────► LOCATIONS (where stored)
-     └──────► DEPARTMENTS (ownership)
+Additional tenant-scoped models:
+  NOTIFICATIONS, AUDIT_LOGS (all have tenantId FK)
 
-     │ has many
-     ├──────► ASSET_ASSIGNMENTS (who uses it)
-     ├──────► ASSET_TRANSFERS (movement history)
-     └──────► AUDIT_LOGS (change history)
+Auth support models (no tenantId):
+  REFRESH_TOKENS, MFA_SECRETS, PASSWORD_RESET_TOKENS
 ```
 
 ### Detailed Relationships
@@ -150,9 +146,71 @@
 
 ---
 
+## Multi-Tenancy Architecture
+
+### How Tenant Isolation Works
+
+```
+HTTP Request
+    │
+    ▼
+┌─────────────────────────────────────────────────┐
+│ TenantInterceptor                                │
+│  1. Extract tenantId from JWT payload            │
+│  2. If isPlatformAdmin + X-Org-Id header:        │
+│     → Use X-Org-Id as tenantId (org switching)   │
+│  3. Store tenantId in CLS context (nestjs-cls)   │
+└────────────────┬────────────────────────────────┘
+                 ▼
+┌─────────────────────────────────────────────────┐
+│ Controller → Service → Prisma Query              │
+└────────────────┬────────────────────────────────┘
+                 ▼
+┌─────────────────────────────────────────────────┐
+│ Prisma Middleware                                 │
+│  - Reads tenantId from CLS context               │
+│  - Auto-adds WHERE tenantId = ? to all queries   │
+│  - Auto-sets tenantId on CREATE operations       │
+│  - Applies to 10 tenant-scoped models            │
+└─────────────────────────────────────────────────┘
+```
+
+### Tenant-Scoped Models (auto-filtered)
+Users, Assets, Departments, Categories, Vendors, Locations, AssetAssignments, AssetTransfers, Notifications, AuditLogs
+
+### Registration Flow (Creates Organization)
+
+```
+POST /auth/register
+  ├─ Validate unique email
+  └─ Transaction:
+      1. Generate slug from organizationName
+      2. Create Organization (name, slug, isActive=true)
+      3. Hash password (bcrypt)
+      4. Create User (tenantId = org.id)
+      5. Assign SUPER_ADMIN role
+```
+
+### Invitation Flow (Join Organization)
+
+```
+POST /organizations/invitations (Admin creates)
+  → Token generated, stored as SHA256 hash, emailed to user
+
+POST /auth/accept-invitation (Invitee accepts)
+  ├─ Validate token hash, not expired, not used
+  └─ Transaction:
+      1. Hash password
+      2. Create User (tenantId = invitation.organizationId)
+      3. Assign role from invitation.roleName
+      4. Mark invitation as accepted
+```
+
+---
+
 ## Role-Based Access Control (RBAC)
 
-### 5 System Roles
+### 5 System Roles + Platform Admin
 
 #### 1. **SUPER_ADMIN** (All Permissions)
 
@@ -214,6 +272,20 @@
 
 **Use Case**: Compliance officer reviewing asset history
 
+#### 6. **Platform Admin** (Cross-Tenant — NOT a Role)
+
+**Important**: `isPlatformAdmin` is a **boolean flag on the User model**, NOT a role in the roles table. It is checked by the `PlatformAdminGuard` and bypasses the `RolesGuard` entirely.
+
+**Capabilities**:
+
+- ✅ Access Platform module endpoints (list/manage all organizations)
+- ✅ Switch to any organization via `X-Org-Id` header
+- ✅ When switched, operates as if belonging to that org
+- ✅ All existing role-based permissions still apply within switched org
+- ❌ Cannot be assigned via the normal role assignment flow
+
+**Use Case**: SaaS platform operator managing all tenant organizations
+
 ### How Permissions are Checked
 
 #### Backend (NestJS)
@@ -228,15 +300,18 @@ createAsset() { ... }
 #### Frontend (React)
 
 ```typescript
-// In frontend/src/lib/auth-context.tsx
-const { user } = useAuth()
-const isAdmin = user?.roles?.includes('SUPER_ADMIN')
-const canManageAssets = user?.roles?.some(r =>
-  ['SUPER_ADMIN', 'ASSET_MANAGER'].includes(r)
-)
+// In frontend/src/lib/permissions.ts — usePermissions() hook
+const { canManageAssets, canApproveTransferAsManager, canSwitchOrgs } = usePermissions()
+
+// Provides 15+ permission flags:
+// isSuperAdmin, isAssetManager, isDeptHead, isEmployee, isAuditor
+// canManageAssets, canCreateAssignment, canApproveTransferAsManager,
+// canApproveTransferAsAdmin, canManageMasterData, canManageUsers,
+// canViewAuditLogs, canViewReports, canSwitchOrgs, ...
 
 // Conditionally render UI
 {canManageAssets && <Button>Create Asset</Button>}
+{canSwitchOrgs && <OrgSwitcher />}
 ```
 
 ---
@@ -461,6 +536,57 @@ IT Department (head: John Doe)
 
 ---
 
+### 9. **Settings Page** → Organization & Invitations
+
+**What it does**:
+
+- Profile management (name, password change)
+- Organization branding (name, logo upload)
+- Invitation management (create, list, revoke invitations)
+
+**Connections**:
+
+- `GET /organizations/me` fetches current org details
+- `PATCH /organizations/me` updates org name
+- `POST /organizations/me/logo` uploads org logo
+- `POST /organizations/invitations` creates invitation
+- `GET /organizations/invitations` lists invitations
+- `DELETE /organizations/invitations/:id` revokes invitation
+
+---
+
+### 10. **Tags Page** → Assets
+
+**What it does**:
+
+- Generates QR codes and barcodes for assets
+- Supports batch label generation for printing
+
+**Connections**:
+
+- `POST /tags/:assetId/qr` generates QR code
+- `POST /tags/:assetId/barcode` generates barcode
+- `POST /tags/:assetId/both` generates both simultaneously
+- QR code URLs point to frontend asset detail page
+
+---
+
+### 11. **Org Switcher** (Platform Admin Only)
+
+**What it does**:
+
+- Allows platform admins to switch between organizations
+- Sends `X-Org-Id` header with subsequent API requests
+- All data views change to the selected organization
+
+**Connections**:
+
+- `GET /platform/organizations` lists all organizations
+- Selected org ID stored in sessionStorage
+- API client reads from sessionStorage → attaches `X-Org-Id` header
+
+---
+
 ## User Workflows
 
 ### Workflow 1: New Asset Onboarding
@@ -558,15 +684,19 @@ IT Department (head: John Doe)
 
 All endpoints prefixed with `/v1`
 
-#### Authentication
+#### Authentication (11 endpoints)
 
-- `POST /auth/register` - Register new user (public)
+- `POST /auth/register` - Register new user + create organization (public)
 - `POST /auth/login` - Login (public)
 - `POST /auth/refresh` - Refresh token (public)
 - `POST /auth/logout` - Logout
 - `POST /auth/forgot-password` - Request password reset (public)
 - `POST /auth/reset-password` - Reset password (public)
+- `POST /auth/accept-invitation` - Accept org invitation (public)
 - `GET /auth/me` - Get current user
+- `POST /auth/mfa/setup` - Setup MFA (TOTP)
+- `POST /auth/mfa/verify` - Verify MFA code
+- `POST /auth/mfa/disable` - Disable MFA
 
 #### Users
 
@@ -655,12 +785,38 @@ All endpoints prefixed with `/v1`
 - `POST /tags/:assetId/qr` - Generate QR code for asset
 - `POST /tags/:assetId/barcode` - Generate barcode for asset
 - `POST /tags/:assetId/both` - Generate both QR and barcode
+- `POST /tags/batch` - Batch label generation
+
+#### Organizations (Multi-Tenancy)
+
+- `GET /organizations/me` - Get current organization details
+- `PATCH /organizations/me` - Update organization (name)
+- `POST /organizations/me/logo` - Upload organization logo
+- `DELETE /organizations/me/logo` - Delete organization logo
+- `POST /organizations/invitations` - Create invitation [@Roles: SUPER_ADMIN]
+- `GET /organizations/invitations` - List invitations [@Roles: SUPER_ADMIN]
+- `DELETE /organizations/invitations/:id` - Revoke invitation [@Roles: SUPER_ADMIN]
+
+#### Platform (Cross-Tenant Admin)
+
+- `GET /platform/organizations` - List all organizations [@PlatformAdmin]
+- `GET /platform/organizations/:id` - Get organization details [@PlatformAdmin]
+- `PATCH /platform/organizations/:id` - Update organization [@PlatformAdmin]
 
 ---
 
 ## Data Flow Example: Complete Asset Lifecycle
 
+**Note**: All operations below are automatically scoped to the user's organization (tenantId) via Prisma middleware. No manual tenant filtering is needed.
+
 ```
+0. ONBOARDING (New Company)
+   Register → Creates Organization "TechCorp" + Admin User
+   - Organization: name, slug, isActive=true
+   - User: tenantId=org.id, SUPER_ADMIN role
+   - JWT payload: {userId, email, roles, tenantId, isPlatformAdmin}
+   → Invite team members via Settings → Invitations
+
 1. SETUP (Asset Manager)
    Categories → Create "Laptops" (20% depreciation, 5yr life)
    Vendors → Create "Dell Inc."
@@ -747,13 +903,21 @@ All endpoints prefixed with `/v1`
 
 ### Key Integration Points
 
-1. **Users** connect to:
+1. **Organizations** (Multi-Tenancy Root):
+   - All data scoped to organization via tenantId
+   - Registration creates org + admin user
+   - Invitation system for team onboarding
+   - Platform admin manages all orgs
+
+2. **Users** connect to:
+   - Organizations (belong to — tenantId)
    - Departments (belong to)
-   - Roles (assigned)
+   - Roles (assigned via user_roles)
    - Assignments (receive assets)
    - Transfers (request/receive)
 
-2. **Assets** connect to:
+3. **Assets** connect to:
+   - Organizations (scoped to — tenantId)
    - Categories (depreciation rules)
    - Vendors (supplier)
    - Locations (where stored)
@@ -761,16 +925,17 @@ All endpoints prefixed with `/v1`
    - Assignments (who uses)
    - Transfers (movement history)
 
-3. **Roles** control:
+4. **Roles** control:
    - Page visibility
    - Action permissions
    - API endpoint access
    - Approval workflows
 
-4. **Workflows** span pages:
+5. **Workflows** span pages:
+   - Onboarding: Register → Organization → Invite Users
    - Asset creation: Categories → Vendors → Locations → Assets
    - Assignment: Assets → Users → Assignments
-   - Transfer: Transfers → Approvals → Reassignment
+   - Transfer: Transfers → Manager Approval → Admin Approval → Reassignment
    - Audit: All actions → Audit Logs → Reports
 
-This system ensures complete traceability, proper authorization, and seamless asset lifecycle management!
+This system ensures complete traceability, multi-tenant data isolation, proper authorization, and seamless asset lifecycle management!

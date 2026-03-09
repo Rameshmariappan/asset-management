@@ -52,3 +52,12 @@ Returns counts of:
 - `completedTransfers`
 - `rejectedTransfers`
 - `awaitingAction` (pending + managerApproved)
+
+## Multi-Tenancy
+- AssetTransfer model has `tenantId` FK → Organization
+- All queries auto-filtered by tenantId via Prisma middleware (TenantContextService)
+- Transfer creation: SUPER_ADMIN, ASSET_MANAGER, or DEPT_HEAD
+- Manager approval: SUPER_ADMIN or DEPT_HEAD (not ASSET_MANAGER)
+- Admin approval: SUPER_ADMIN or ASSET_MANAGER
+- Rejection: SUPER_ADMIN, ASSET_MANAGER, or DEPT_HEAD
+- All approval/rejection endpoints use PATCH method

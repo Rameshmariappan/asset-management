@@ -6,6 +6,8 @@ Categories in your asset management system serve two critical purposes:
 1. **Organize assets** into logical groups (Laptops, Monitors, Servers, etc.)
 2. **Define depreciation rules** that automatically calculate asset value over time
 
+**Multi-Tenancy Note**: Categories and assets are scoped per organization (tenant). Each organization defines its own categories with its own depreciation rules. All queries are auto-filtered by `tenantId` via Prisma middleware — one organization's categories and depreciation data are completely isolated from another's.
+
 ---
 
 ## Real-World Scenario 1: IT Company Managing Laptops

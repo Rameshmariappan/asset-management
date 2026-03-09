@@ -54,3 +54,9 @@ Returns:
 Returns for a specific asset:
 - All assignments (ordered by assignedAt desc) with user details
 - All transfers (ordered by requestedAt desc) with from/to user details
+
+## Multi-Tenancy
+- Asset model has `tenantId` FK → Organization
+- All queries auto-filtered by tenantId via Prisma middleware (TenantContextService)
+- Uniqueness checks (assetTag, serialNumber) are scoped within the query context
+- Delete restricted to SUPER_ADMIN only (not ASSET_MANAGER)

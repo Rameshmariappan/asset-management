@@ -17,19 +17,37 @@ NotificationChannel: in_app | email | slack
 
 ## Models by Group
 
+### Multi-Tenancy
+
+**Organization** (`organizations`)
+- `id` UUID PK, `name` VARCHAR(200), `slug` VARCHAR(100) UNIQUE
+- `logoUrl` TEXT nullable, `isActive` (default true)
+- `createdAt`, `updatedAt`
+- Relations: users, departments, categories, vendors, locations, assets, invitations
+
+**OrgInvitation** (`org_invitations`)
+- `id` UUID PK, `organizationId` FK → Organization, `email` VARCHAR(255)
+- `roleName` VARCHAR(50), `tokenHash` VARCHAR(255) UNIQUE
+- `invitedByUserId` FK → User, `expiresAt`, `acceptedAt` nullable
+- `createdAt`
+- Indexes: organizationId, tokenHash
+- Relations: organization, invitedBy (User)
+
 ### Auth & Authorization
 
 **User** (`users`)
 - `id` UUID PK, `email` VARCHAR(255), `passwordHash` VARCHAR(255) nullable
 - `firstName`, `lastName`, `phone`, `avatarUrl`, `isActive` (default true), `isMfaEnabled` (default false)
-- `emailVerifiedAt`, `departmentId` FK, `managerId` FK (self-ref), `tenantId`
+- `isPlatformAdmin` (default false) — cross-tenant admin flag
+- `emailVerifiedAt`, `departmentId` FK, `managerId` FK (self-ref), `tenantId` FK → Organization nullable
 - `createdAt`, `updatedAt`, `deletedAt` (soft delete)
 - Indexes: email, tenantId, departmentId, isActive
-- Relations: department, manager, subordinates, userRoles, refreshTokens, passwordResetTokens, mfaSecret, assignments (3 relations), transfers (6 relations), auditLogs, notifications, departmentsHeaded
+- Relations: organization, department, manager, subordinates, userRoles, refreshTokens, passwordResetTokens, mfaSecret, assignments (3 relations), transfers (6 relations), auditLogs, notifications, departmentsHeaded, invitedInvitations
 
 **Role** (`roles`)
 - `id`, `name` VARCHAR(50) UNIQUE, `displayName`, `description`, `tenantId`
 - Defined roles: SUPER_ADMIN, ASSET_MANAGER, DEPARTMENT_HEAD, EMPLOYEE, AUDITOR
+- Note: PLATFORM_ADMIN is not a role — it's the `isPlatformAdmin` flag on User
 
 **Permission** (`permissions`)
 - `id`, `resource` VARCHAR(50), `action` VARCHAR(20), `description`
@@ -55,7 +73,7 @@ NotificationChannel: in_app | email | slack
 - `id`, `tokenHash` UNIQUE, `userId` FK, `expiresAt`, `usedAt`
 - Indexes: userId, tokenHash
 
-### Organization
+### Organization Structure
 
 **Department** (`departments`)
 - `id`, `name`, `code` UNIQUE, `parentId` FK (self-ref hierarchy), `headUserId` FK, `tenantId`
@@ -133,10 +151,12 @@ NotificationChannel: in_app | email | slack
 
 **Partial Unique Index**: Email uniqueness enforced WHERE `deleted_at IS NULL` (via migration, not visible in schema.prisma).
 
-**Multi-Tenant Ready**: Most models have nullable `tenantId` field — currently unused, prepared for future multi-tenancy.
+**Multi-Tenant Active**: Most models have `tenantId` FK → Organization. Auto-filtered by Prisma middleware via TenantContextService (CLS). 10 models are tenant-scoped: User, Department, Category, Vendor, Location, Asset, AssetAssignment, AssetTransfer, AuditLog, Notification.
 
 **Self-Referential Hierarchies**: Department, Category, Location each have `parentId` → self for tree structures.
 
 **JSONB Fields**: customFields (Asset), imageUrls (Asset), assignPhotoUrls/returnPhotoUrls (Assignment), backupCodes (MfaSecret), changes (AuditLog), data (Notification).
 
 **Column Mapping**: All camelCase fields map to snake_case DB columns via `@map()`. All table names mapped via `@@map()`.
+
+**Token Hashing**: RefreshToken.tokenHash and PasswordResetToken.tokenHash store SHA256 hashes, not raw tokens. OrgInvitation.tokenHash also stores hashed token.
